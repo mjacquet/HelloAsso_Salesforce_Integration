@@ -209,7 +209,7 @@ global with sharing class helloAssoManager implements Schedulable {
                     donation.npsp__Primary_Contact__c=con.id;
                     donation.Accountid=con.accountid;
                 }
-                else {
+                else {//maybe we can add a loop to update info or add info from this payment.
                     con=cs[0];
                     donation.npsp__Primary_Contact__c=cs[0].id;
                     donation.Accountid=cs[0].accountid;
@@ -255,6 +255,10 @@ global with sharing class helloAssoManager implements Schedulable {
                 
                 donation.closedate=p.ddate.date();
                 donation.StageName='Posted';
+                for(custom_infos ci:a.custom_infos){
+                    donation.description=ci.label+ ': '+ci.value+'\n';
+                }
+                
                 System.Debug('Donation');
                 upsert donation;
                 System.Debug(donation);
@@ -439,7 +443,12 @@ global with sharing class helloAssoManager implements Schedulable {
         public String city;
         public String country;
         public String email;
-        public String option_label;             
+        public String option_label;  
+        public List<custom_infos> custom_infos;           
+    }
+    global class custom_infos{
+        public String label;
+        public String value;            
     }
     global class haCampaign{
         public String id;
