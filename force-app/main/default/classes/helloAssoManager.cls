@@ -193,25 +193,17 @@ global with sharing class helloAssoManager implements Schedulable {
                         acc.name=p.payer_society;
                         insert acc;
                         System.Debug(acc);
-                        con.firstname=p.payer_first_name;
-                        con.lastname=p.payer_last_name;
-                        con.MailingStreet=p.payer_address;
-                        con.mailingPostalCode=p.payer_zip_code;
-                        con.mailingCity=p.payer_city;
-                        con.mailingCountry=p.payer_country;
-                        con.email=p.payer_email;
                         con.GW_Volunteers__Volunteer_Organization__c=p.payer_society;
                         con.accountid=acc.id;
                     }
-                    else{//this is an household
-                        con.firstname=p.payer_first_name;
-                        con.lastname=p.payer_last_name;
-                        con.MailingStreet=p.payer_address;
-                        con.mailingPostalCode=p.payer_zip_code;
-                        con.mailingCity=p.payer_city;
-                        con.mailingCountry=p.payer_country;
-                        con.email=p.payer_email;
-                    }
+                    con.firstname=p.payer_first_name;
+                    con.lastname=p.payer_last_name;
+                    con.MailingStreet=p.payer_address;
+                    con.mailingPostalCode=p.payer_zip_code;
+                    con.mailingCity=p.payer_city;
+                    con.mailingCountry=p.payer_country;
+                    con.email=p.payer_email;
+                    con.Birthdate=p.payer_birthdate.date();
                     insert con;
                     con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:con.id FOR UPDATE];
                     donation.npsp__Primary_Contact__c=con.id;
@@ -278,6 +270,12 @@ global with sharing class helloAssoManager implements Schedulable {
                 else{
                     npe01__OppPayment__c p1=npspps[0];
                     p1.helloassoid__c=p.id;
+                    switch on p.type{
+                        when 'CREDIT'{npe01__Payment_Method__c='Carte Bbncaire';}
+                        when 'CHEQUE'{npe01__Payment_Method__c='Chèque';}
+                        when 'SEPA'{npe01__Payment_Method__c='Prélèvement Automatique';}
+                    }
+                    p1.npe01__Payment_Method__c=
                     //paiment type to map (cheque, credit, SEPA)
                     update p1;
                     System.Debug(p1);
@@ -418,7 +416,7 @@ global with sharing class helloAssoManager implements Schedulable {
         public string payer_city;
         public string payer_country;
         public string payer_email;
-        public string payer_birthdate;
+        public datetime payer_birthdate;
         public string payer_society;
         public boolean payer_is_society;
         public string url_receipt;
