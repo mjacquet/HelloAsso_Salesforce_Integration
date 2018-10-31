@@ -275,7 +275,6 @@ global with sharing class helloAssoManager implements Schedulable {
                         when 'CHEQUE'{npe01__Payment_Method__c='Chèque';}
                         when 'SEPA'{npe01__Payment_Method__c='Prélèvement Automatique';}
                     }
-                    p1.npe01__Payment_Method__c=
                     //paiment type to map (cheque, credit, SEPA)
                     update p1;
                     System.Debug(p1);
