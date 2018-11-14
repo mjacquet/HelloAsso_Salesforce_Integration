@@ -72,7 +72,7 @@ global with sharing class helloAssoManager implements Schedulable {
     } 
  */   
     public static void processPayment(payment p){
-        List<npe01__OppPayment__c> npsp_ps=[SELECT id,helloassoid__c from npe01__OppPayment__c where helloassoid__c = :p.id];
+        List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c = :p.id];
         if(npsp_ps.isempty()){
             boolean bo=doProcessPayment(p);
         } 
@@ -87,9 +87,9 @@ global with sharing class helloAssoManager implements Schedulable {
         }
        System.debug('map before filtering (size: '+pids.size()+')');
        System.debug(mp);
-       List<npe01__OppPayment__c> npsp_ps=[SELECT id,helloassoid__c from npe01__OppPayment__c where helloassoid__c IN :pids];
+       List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c IN :pids];
        for(npe01__OppPayment__c npp : npsp_ps){
-           mp.remove(npp.helloassoid__c);
+           mp.remove(npp.npe01__Check_Reference_Number__c);
        }
         //let's also filter by removing payment where there is no donations...
        List<String> cpids=new list<string>();
@@ -257,7 +257,34 @@ global with sharing class helloAssoManager implements Schedulable {
                 donation.StageName='Posted';
                 for(custom_infos ci:a.custom_infos){
                     donation.description=ci.label+ ': '+ci.value+'\n';
+                    if(ci.label.contains('adhérent')){
+                        if(ci.value=='Oui'){
+                            donation.Demande_adhesion__c=true;//créer une adhésion.
+                        }
+                        else donation.Demande_adhesion__c=false;
+                        //pour slimpay egalement: 
+                    }
+                    if(ci.label.contains('newsletter')){
+                        if(ci.value=='Oui'){
+                            con.newsletter__c=true;
+                            update con;
+                        }
+                        else{
+                            con.newsletter__c=false;
+                            update con;
+                        }
+                    }
+                    if(ci.label.contains('connu')){
+                        con.contact_comment_connu__c=ci.value;
+                        update con;
+                    }
                 }
+
+                switch on p.type{
+                        when 'CREDIT'{donation.Methode_Paiement__c='Carte Bancaire';}//
+                        when 'CHEQUE'{donation.Methode_Paiement__c='Chèque';}
+                        when 'SEPA'{donation.Methode_Paiement__c='Prélèvement Automatique';}
+                    }
                 
                 System.Debug('Donation');
                 upsert donation;
@@ -273,12 +300,14 @@ global with sharing class helloAssoManager implements Schedulable {
                 }
                 else{
                     npe01__OppPayment__c p1=npspps[0];
-                    p1.helloassoid__c=p.id;
+                    p1.npe01__Check_Reference_Number__c=p.id;
+                    p1.Plateforme_de_paiement__c='Helloasso';
                     switch on p.type{
-                        when 'CREDIT'{npe01__Payment_Method__c='Carte Bbncaire';}
-                        when 'CHEQUE'{npe01__Payment_Method__c='Chèque';}
-                        when 'SEPA'{npe01__Payment_Method__c='Prélèvement Automatique';}
+                        when 'CREDIT'{p1.npe01__Payment_Method__c='Carte Bbncaire';}//
+                        when 'CHEQUE'{p1.pe01__Payment_Method__c='Chèque';}
+                        when 'SEPA'{P1.npe01__Payment_Method__c='Prélèvement Automatique';}
                     }
+                    
                     //paiment type to map (cheque, credit, SEPA)
                     update p1;
                     System.Debug(p1);
@@ -425,6 +454,7 @@ global with sharing class helloAssoManager implements Schedulable {
         public string url_receipt;
         public string url_tax_receipt;
         public string status;
+        public string mean; //moyen de paiement NEW
         public List<action> actions;
     }
     global class action{
