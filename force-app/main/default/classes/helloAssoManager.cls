@@ -304,7 +304,7 @@ global with sharing class helloAssoManager implements Schedulable {
                     p1.Plateforme_de_paiement__c='Helloasso';
                     switch on p.type{
                         when 'CREDIT'{p1.npe01__Payment_Method__c='Carte Bbncaire';}//
-                        when 'CHEQUE'{p1.pe01__Payment_Method__c='Chèque';}
+                        when 'CHEQUE'{p1.npe01__Payment_Method__c='Chèque';}
                         when 'SEPA'{P1.npe01__Payment_Method__c='Prélèvement Automatique';}
                     }
                     
