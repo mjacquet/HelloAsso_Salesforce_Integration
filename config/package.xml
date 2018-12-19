@@ -6,11 +6,31 @@
         <members>RollupMoyenPaiement</members>
         <members>scheduleRollupMoyenDePaiement</members>
         <members>RollupMoyenPaiement_test</members>
+        <members>adhesion_test</members>
         <name>ApexClass</name>
     </types>
     <types>
         <members>adhesion</members>
         <name>ApexTrigger</name>
+    </types>
+    <types>
+        <members>Contact.Newsletter__c</members>
+        <members>Contact.adherent__c</members>
+        <members>Contact.contact_comment_connu__c</members>
+        <members>Opportunity.Demande_adhesion__c</members>
+        <members>Campaign.helloassoid__c</members>
+        <members>npe01__OppPayment__c.Plateforme_de_paiement__c</members>
+        <members>Contact.Moyens_de_Paiement_ann_e_derni_re__c</members>
+        <members>Contact.Moyens_de_Paiement_annee_en_cours__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>HelloAssoAPI</members>
+        <name>RemoteSiteSetting</name>
+    </types>
+    <types>
+        <members>HelloAssoApi</members>
+        <name>NamedCredential</name>
     </types>
     <version>44.0</version>
 </Package>
