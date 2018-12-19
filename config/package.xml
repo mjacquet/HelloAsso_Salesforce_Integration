@@ -4,6 +4,8 @@
         <members>helloAssoManager</members>
         <members>helloAssoManager_test</members>
         <members>RollupMoyenPaiement</members>
+        <members>scheduleRollupMoyenDePaiement</members>
+        <members>RollupMoyenPaiement_test</members>
         <name>ApexClass</name>
     </types>
     <types>

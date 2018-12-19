@@ -8,7 +8,7 @@ global class helloAssoManager_test {
     
     	SingleRequestMock fakePaymentResp = new SingleRequestMock(200,
                                                          'Complete',
-                                                         '{"id":"000026162483","ddate":"2018-08-17T15:58:00Z","amount":5.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"51 rue leon fontaine","payer_zip_code":"78500","payer_city":"Sartrouville","payer_country":"FRA","payer_email":"zerowaste@jacquet.me","payer_birthdate":null,"payer_society":"","payer_is_society":false,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376701","type":"DONATION","amount":5.00,"status":"PROCESSED"}],"status":"AUTHORIZED"}',
+                                                         '{"id":"000026162483","mean":"CARD","ddate":"2018-08-17T15:58:00Z","amount":5.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"51 rue leon fontaine","payer_zip_code":"78500","payer_city":"Sartrouville","payer_country":"FRA","payer_email":"zerowaste@jacquet.me","payer_birthdate":null,"payer_society":"","payer_is_society":false,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376701","type":"DONATION","amount":5.00,"status":"PROCESSED"}],"status":"AUTHORIZED"}',
                                                          null);
 
         SingleRequestMock fakeActionResp = new SingleRequestMock(200,
@@ -48,7 +48,7 @@ global class helloAssoManager_test {
        // Test.setMock(HttpCalloutMock.class, new GetPaymentCalloutMock());
         SingleRequestMock fakePaymenstResp = new SingleRequestMock(200,
                                                          'Complete',
-                                                         '{"resources":[{"id":"000026162483","ddate":"2018-08-17T15:58:00Z","amount":5.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"51 rue leon fontaine","payer_zip_code":"78500","payer_city":"Sartrouville","payer_country":"FRA","payer_email":"zerowaste@jacquet.me","payer_birthdate":null,"payer_society":"blabla","payer_is_society":true,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376701","type":"RECURRENT_DONATION","amount":5.00,"status":"PROCESSED"}],"status":"AUTHORIZED"}],"pagination":{"page":1,"max_page":576,"results_per_page":1}}',
+                                                         '{"resources":[{"id":"000026162483","mean":"CARD","ddate":"2018-08-17T15:58:00Z","amount":5.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"51 rue leon fontaine","payer_zip_code":"78500","payer_city":"Sartrouville","payer_country":"FRA","payer_email":"zerowaste@jacquet.me","payer_birthdate":null,"payer_society":"blabla","payer_is_society":true,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376701","type":"RECURRENT_DONATION","amount":5.00,"status":"PROCESSED"}],"status":"AUTHORIZED"}],"pagination":{"page":1,"max_page":576,"results_per_page":1}}',
                                                          null);
     
     	SingleRequestMock fakePaymentResp = new SingleRequestMock(200,
@@ -70,7 +70,7 @@ global class helloAssoManager_test {
         endpoint2TestResp.put('callout:HelloAssoApi/v3/payments/000026162483.json',fakePaymentResp);
         endpoint2TestResp.put('callout:HelloAssoApi/v3/actions/000050376701.json',fakeActionResp);
         endpoint2TestResp.put('callout:HelloAssoApi/v3/campaigns/000000279262.json',fakeCampaignResp);
-        endpoint2TestResp.put('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from=2018-08-17T17:33:00&results_per_page=1000',fakePaymenstResp);
+        endpoint2TestResp.put('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from=2018-08-17T17:33:00&results_per_page=1000&page=1',fakePaymenstResp);
 
         HttpCalloutMock multiCalloutMock =
             	                   new MultiRequestMock(endpoint2TestResp);

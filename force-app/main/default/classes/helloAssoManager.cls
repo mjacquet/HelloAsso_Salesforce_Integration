@@ -11,13 +11,22 @@ global with sharing class helloAssoManager implements Schedulable {
         System.debug('GET received');
         System.debug(pId);
         if(!String.isBlank(pID)&& pid!='helloasso'){
-        	Payment p=getPayment(pId); 
-            for (Integer i = 0; i < p.actions.size(); i++) {
-                p.actions[i]=getAction(p.actions[i].Id);
-            }      
-            processPayment(p);   
-    
-        	return 'processed';
+            
+            if(!pid.contains('@')){//http://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/00387654678
+                Payment p=getPayment(pId); 
+                for (Integer i = 0; i < p.actions.size(); i++) {
+                    p.actions[i]=getAction(p.actions[i].Id);
+                }      
+                processPayment(p); 
+                return 'processed';
+    		}
+            else{ // https://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/2018-01-0T00:00:00@50@1
+                String[]params=pid.split('\\@');
+                List<payment> ps=makeGetPaymentsCallout(params[0],params[1],params[2]);
+                processPayments(ps); 
+                return 'processed '+params[2];
+            }
+        	
     	}
     	else return 'nothing to process';
         
@@ -45,7 +54,7 @@ global with sharing class helloAssoManager implements Schedulable {
     
     public static List<payment> getPayments(String fromdate){//'2018-08-17T17:09:47'
         system.debug('getPayments');
-        List<payment> p=makeGetPaymentsCallout(fromdate);
+        List<payment> p=makeGetPaymentsCallout(fromdate,'1000','1');
         system.debug(p);
         return p;
     } 
@@ -146,6 +155,7 @@ global with sharing class helloAssoManager implements Schedulable {
         processPayments(ps); 
     }
     
+    
     //PRIVATE functions
     private static boolean doProcessPayment(payment p){
         System.Debug('Processing payment with Id '+p.ID);
@@ -203,7 +213,7 @@ global with sharing class helloAssoManager implements Schedulable {
                     con.mailingCity=p.payer_city;
                     con.mailingCountry=p.payer_country;
                     con.email=p.payer_email;
-                    con.Birthdate=p.payer_birthdate.date();
+                    if(p.payer_birthdate!=null)con.Birthdate=p.payer_birthdate.date();
                     insert con;
                     con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:con.id FOR UPDATE];
                     donation.npsp__Primary_Contact__c=con.id;
@@ -220,7 +230,7 @@ global with sharing class helloAssoManager implements Schedulable {
                     npe03__Recurring_Donation__c rd=new npe03__Recurring_Donation__c();
                     List <npe03__Recurring_Donation__c> rds=new List<npe03__Recurring_Donation__c>();
                     if(p.payer_is_society){
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid ];
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid];
                     }
                     else{
                         rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id];
@@ -243,7 +253,8 @@ global with sharing class helloAssoManager implements Schedulable {
                     }
                     else rd=rds[0];
                     
-                    donation=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' order by closeDate asc LIMIT 1 ];//FOR UPDATE
+                    donation=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' and closeDate=THIS_MONTH LIMIT 1 ];//FOR UPDATE
+                    if(donation==null)donation=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' order by closeDate asc LIMIT 1 ];//FOR UPDATE
                     donation=[Select id,amount from opportunity where id=:donation.id FOR UPDATE];
                     
                 }
@@ -255,8 +266,9 @@ global with sharing class helloAssoManager implements Schedulable {
                 
                 donation.closedate=p.ddate.date();
                 donation.StageName='Posted';
+                donation.description='';
                 for(custom_infos ci:a.custom_infos){
-                    donation.description=ci.label+ ': '+ci.value+'\n';
+                    donation.description+=ci.label+ ': '+ci.value+'\n';
                     if(ci.label.contains('adhérent')){
                         if(ci.value=='Oui'){
                             donation.Demande_adhesion__c=true;//créer une adhésion.
@@ -280,9 +292,9 @@ global with sharing class helloAssoManager implements Schedulable {
                     }
                 }
 
-                switch on p.type{
-                        when 'CREDIT'{donation.Methode_Paiement__c='Carte Bancaire';}//
-                        when 'CHEQUE'{donation.Methode_Paiement__c='Chèque';}
+                switch on p.mean{
+                        when 'CARD'{donation.Methode_Paiement__c='Carte Bancaire';}//
+                        when 'CHECK'{donation.Methode_Paiement__c='Chèque';}
                         when 'SEPA'{donation.Methode_Paiement__c='Prélèvement Automatique';}
                     }
                 
@@ -302,13 +314,11 @@ global with sharing class helloAssoManager implements Schedulable {
                     npe01__OppPayment__c p1=npspps[0];
                     p1.npe01__Check_Reference_Number__c=p.id;
                     p1.Plateforme_de_paiement__c='Helloasso';
-                    switch on p.type{
-                        when 'CREDIT'{p1.npe01__Payment_Method__c='Carte Bbncaire';}//
-                        when 'CHEQUE'{p1.npe01__Payment_Method__c='Chèque';}
+                    switch on p.mean{
+                        when 'CARD'{p1.npe01__Payment_Method__c='Carte Bancaire';}//
+                        when 'CHECK'{p1.npe01__Payment_Method__c='Chèque';}
                         when 'SEPA'{P1.npe01__Payment_Method__c='Prélèvement Automatique';}
                     }
-                    
-                    //paiment type to map (cheque, credit, SEPA)
                     update p1;
                     System.Debug(p1);
                 } 
@@ -318,14 +328,12 @@ global with sharing class helloAssoManager implements Schedulable {
         return true;
     }
     
- 
     
-    
-    
-    private static List<payment> makeGetPaymentsCallout(String fromdate) {
+    private static List<payment> makeGetPaymentsCallout(String fromdate,String rpp, String page) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
-        request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page=1000');//BACK to 10000 after test
+        System.debug('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);
+        request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);//BACK to 10000 after test
         request.setMethod('GET');
         request.setTimeout(20000);
         HttpResponse response = http.send(request);    
