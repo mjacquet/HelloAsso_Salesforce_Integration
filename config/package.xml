@@ -9,6 +9,10 @@
         <members>adhesion_test</members>
         <name>ApexClass</name>
     </types>
+     <types>
+        <members>ActionProcessDuplicate</members>
+        <name>AuraDefinitionBundle</name>
+    </types>
     <types>
         <members>adhesion</members>
         <name>ApexTrigger</name>

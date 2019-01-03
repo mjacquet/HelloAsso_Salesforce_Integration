@@ -1,5 +1,16 @@
 @RestResource(urlMapping='/')
 global with sharing class helloAssoManager implements Schedulable {
+    //Lightning controler
+    @AuraEnabled
+      public static void processDuplicate(String pId,boolean dedup ) {
+         Payment p=getPayment(pId); 
+                for (Integer i = 0; i < p.actions.size(); i++) {
+                    p.actions[i]=getAction(p.actions[i].Id);
+                }      
+                processPayment(p,dedup);
+   		}
+    
+    
     //REST Endpoints exposed
     
     @HttpGet
@@ -17,18 +28,18 @@ global with sharing class helloAssoManager implements Schedulable {
                 for (Integer i = 0; i < p.actions.size(); i++) {
                     p.actions[i]=getAction(p.actions[i].Id);
                 }      
-                processPayment(p); 
+                processPayment(p,false); 
                 return 'processed';
-    		}
+            }
             else{ // https://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/2018-01-0T00:00:00@50@1
                 String[]params=pid.split('\\@');
                 List<payment> ps=makeGetPaymentsCallout(params[0],params[1],params[2]);
                 processPayments(ps); 
                 return 'processed '+params[2];
             }
-        	
-    	}
-    	else return 'nothing to process';
+            
+        }
+        else return 'nothing to process';
         
         //URL: https://cs87.salesforce.com/services/apexrest/helloasso
         //http://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso
@@ -46,7 +57,7 @@ global with sharing class helloAssoManager implements Schedulable {
         for (Integer i = 0; i < p.actions.size(); i++) {
             p.actions[i]=getAction(p.actions[i].Id);
         }      
-        processPayment(p);   
+        processPayment(p,false);   
         return '';
     }    
     
@@ -72,21 +83,21 @@ global with sharing class helloAssoManager implements Schedulable {
         system.debug(a);
         return a;
     } 
- /*   
-    public static list<action> getActions(String fromdate){
-        system.debug('getActions');
-        List<action> a=makeGetActionsCallout(fromdate);
-        system.debug(a);
-        return a;
-    } 
- */   
-    public static void processPayment(payment p){
+    /*   
+public static list<action> getActions(String fromdate){
+system.debug('getActions');
+List<action> a=makeGetActionsCallout(fromdate);
+system.debug(a);
+return a;
+} 
+*/   
+    public static void processPayment(payment p,boolean ignoreDuplicates){
         List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c = :p.id];
         if(npsp_ps.isempty()){
-            boolean bo=doProcessPayment(p);
+            boolean bo=doProcessPayment(p,ignoreDuplicates);
         } 
     }
-	public static void processPayments(List<payment> ps){
+    public static void processPayments(List<payment> ps){
         //Process to remove the payments already processed.
         List<String>pids=new list<string>();
         Map<String,Payment> mp=new Map<String,Payment>();
@@ -94,16 +105,16 @@ global with sharing class helloAssoManager implements Schedulable {
             pids.add(p.id);
             mp.put(p.id,p);
         }
-       System.debug('map before filtering (size: '+pids.size()+')');
-       System.debug(mp);
-       List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c IN :pids];
-       for(npe01__OppPayment__c npp : npsp_ps){
-           mp.remove(npp.npe01__Check_Reference_Number__c);
-       }
+        System.debug('map before filtering (size: '+pids.size()+')');
+        System.debug(mp);
+        List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c IN :pids];
+        for(npe01__OppPayment__c npp : npsp_ps){
+            mp.remove(npp.npe01__Check_Reference_Number__c);
+        }
         //let's also filter by removing payment where there is no donations...
-       List<String> cpids=new list<string>();
-       List<String> conids=new list<string>();
-       list <payment> fps=mp.values();
+        List<String> cpids=new list<string>();
+        List<String> conids=new list<string>();
+        list <payment> fps=mp.values();
         for(payment fp :fps){
             Boolean toProcess=false;
             for(action a:fp.actions){
@@ -115,24 +126,24 @@ global with sharing class helloAssoManager implements Schedulable {
             if(!toProcess)mp.remove(fp.id);
             else conids.add(fp.payer_email);
         }
-       
-       List<payment> ps_toprocess=mp.values();
-       System.debug('map after filtering(size: '+ps_toprocess.size()+')');
-       System.debug(ps_toprocess);
-       
+        
+        List<payment> ps_toprocess=mp.values();
+        System.debug('map after filtering(size: '+ps_toprocess.size()+')');
+        System.debug(ps_toprocess);
+        
         for(payment p : ps_toprocess){
-            futureProcessPayment(p.id);
+            futureProcessPayment(p.id,false);
         }  
     }
     
     @future(callout=true)
-    public static void futureProcessPayment(String pid){
+    public static void futureProcessPayment(String pid,boolean ignoreDuplicates){
         Payment p=getPayment(pId);
         if(p!=null){
             for (Integer i = 0; i < p.actions.size(); i++) {
                 p.actions[i]=getAction(p.actions[i].Id);
             }      
-            processPayment(p); 
+            processPayment(p,ignoreDuplicates); 
         }
     }
     
@@ -141,23 +152,23 @@ global with sharing class helloAssoManager implements Schedulable {
     global void execute(SchedulableContext ctx) {
         datetime myDateTime = datetime.now();
         mydatetime=myDateTime.addHours(-25);
-       // datetime myactiondatetime=myDateTime.addHours(-120);
+        // datetime myactiondatetime=myDateTime.addHours(-120);
         String Fromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
-      //  String ActionFromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
-       // fromdate='2018-10-02T00:00:01';//test
-      //  actionfromdate='2018-01-01T00:00:01';//test
+        //  String ActionFromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
+        // fromdate='2018-10-02T00:00:01';//test
+        //  actionfromdate='2018-01-01T00:00:01';//test
         System.debug('processing date: '+Fromdate);
         //'2018-08-17T17:09:47';
         List<payment> ps=getPayments(Fromdate);
         System.debug('Received payments: '+ps.size());
-      //  List<action> acs=getActions(ActionFromdate);
-       
+        //  List<action> acs=getActions(ActionFromdate);
+        
         processPayments(ps); 
     }
     
     
     //PRIVATE functions
-    private static boolean doProcessPayment(payment p){
+    private static boolean doProcessPayment(payment p,boolean ignoreDuplicates){
         System.Debug('Processing payment with Id '+p.ID);
         System.Debug(p);   
         //We will need to loop through actions to process only donations, not inscriptions (ticket sales for event).
@@ -201,10 +212,50 @@ global with sharing class helloAssoManager implements Schedulable {
                         acc.shippingCity=p.payer_city;
                         acc.shippingCountry=p.payer_country;
                         acc.name=p.payer_society;
-                        insert acc;
+                        if(ignoreDuplicates)acc.ignore_duplicate__c=true;
+                        // insert acc;
+                        Database.SaveResult res=DataBase.insert(acc,false);
+                        
+                        if (res.isSuccess()) {
+                            // Operation was successful, so get the ID of the record that was processed
+                            System.debug('Successfully inserted Account. account ID: ' + res.getId());
+                            
+                        }
+                        else {
+                            
+                            Datacloud.DuplicateResult duplicateResult;
+                            List<Datacloud.MatchRecord> matchRecords;
+                            List<Id> duplicateIds = new List<id>();
+                            // Operation failed, so get all errors                
+                            for(Database.Error duplicateError : res.getErrors()) {
+                                if (duplicateError instanceof Database.DuplicateError) {
+                                    doublons__c d=new doublons__c();
+                                    d.id_paiement__c=p.ID;
+                                    duplicateResult = ((Database.DuplicateError)duplicateError).getDuplicateResult();
+                                    System.debug('The following error has occurred.--duplicateResult--'+duplicateResult);                    
+                                    for(Datacloud.MatchResult duplicateMatchResult : duplicateResult.getMatchResults()) {
+                                        matchRecords = duplicateMatchResult.getMatchRecords();
+                                        System.debug('The following error has occurred.--matchRecords--'+matchRecords);  
+                                        
+                                    }
+                                    System.debug('total.--matchRecords--'+matchRecords);  
+                                    for(Datacloud.MatchRecord duplicateMatchRecord : matchRecords) {
+                                        duplicateIds.add(duplicateMatchRecord.getRecord().Id);
+                                        System.debug('duplicateIds--'+duplicateIds);
+                                        d.Doublon_Potentiel_Compte__c=duplicateMatchRecord.getRecord().Id;
+                                    }
+                                    System.debug('Total duplicateIds--'+duplicateIds);
+                                    d.details__c=string.join(duplicateIds,',');
+                                    d.infos__c=json.serializePretty(p);
+                                    insert d;
+                                }
+                                else System.debug('This is something else'); 
+                            }
+                            return false;
+                        }
                         System.Debug(acc);
                         con.GW_Volunteers__Volunteer_Organization__c=p.payer_society;
-                        con.accountid=acc.id;
+                        con.accountid=res.getId();
                     }
                     con.firstname=p.payer_first_name;
                     con.lastname=p.payer_last_name;
@@ -213,9 +264,49 @@ global with sharing class helloAssoManager implements Schedulable {
                     con.mailingCity=p.payer_city;
                     con.mailingCountry=p.payer_country;
                     con.email=p.payer_email;
+                    if(ignoreDuplicates)con.ignore_duplicate__c=true;
                     if(p.payer_birthdate!=null)con.Birthdate=p.payer_birthdate.date();
-                    insert con;
-                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:con.id FOR UPDATE];
+                    //insert con;
+                    
+                    
+                    Database.SaveResult res=DataBase.insert(con,false);
+                    
+                    if (res.isSuccess()) {
+                        // Operation was successful, so get the ID of the record that was processed
+                        System.debug('Successfully inserted contact. contact ID: ' + res.getId());
+                        
+                    }
+                    else {
+                        
+                        Datacloud.DuplicateResult duplicateResult;
+                        List<Datacloud.MatchRecord> matchRecords;
+                        List<Id> duplicateIds = new List<id>();
+                        // Operation failed, so get all errors                
+                        for(Database.Error duplicateError : res.getErrors()) {
+                            if (duplicateError instanceof Database.DuplicateError) {
+                                duplicateResult = ((Database.DuplicateError)duplicateError).getDuplicateResult();
+                                System.debug('The following error has occurred.--duplicateResult--'+duplicateResult);  
+                  
+                                for(Datacloud.MatchResult duplicateMatchResult : duplicateResult.getMatchResults()) {
+                                    matchRecords = duplicateMatchResult.getMatchRecords();
+                                    System.debug('The following error has occurred.--matchRecords--'+matchRecords);  
+                                }
+                                System.debug('total.--matchRecords--'+matchRecords);  
+                                for(Datacloud.MatchRecord duplicateMatchRecord : matchRecords) {
+                                    duplicateIds.add(duplicateMatchRecord.getRecord().Id);
+                                    System.debug('duplicateIds--'+duplicateIds);
+                                    
+                                }
+                                System.debug('Total duplicateIds--'+duplicateIds);
+                            }
+                            else system.debug('This is something else');
+                        }
+                        return false;
+                    }
+                    
+                    
+                    
+                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() FOR UPDATE];
                     donation.npsp__Primary_Contact__c=con.id;
                     donation.Accountid=con.accountid;
                 }
@@ -291,12 +382,12 @@ global with sharing class helloAssoManager implements Schedulable {
                         update con;
                     }
                 }
-
+                
                 switch on p.mean{
-                        when 'CARD'{donation.Methode_Paiement__c='Carte Bancaire';}//
-                        when 'CHECK'{donation.Methode_Paiement__c='Chèque';}
-                        when 'SEPA'{donation.Methode_Paiement__c='Prélèvement Automatique';}
-                    }
+                    when 'CARD'{donation.Methode_Paiement__c='Carte Bancaire';}//
+                    when 'CHECK'{donation.Methode_Paiement__c='Chèque';}
+                    when 'SEPA'{donation.Methode_Paiement__c='Prélèvement Automatique';}
+                }
                 
                 System.Debug('Donation');
                 upsert donation;
@@ -370,25 +461,25 @@ global with sharing class helloAssoManager implements Schedulable {
         }
         return payment;
     } 
-  /*  
-    private static List<action> makeGetActionsCallout(String fromdate) {//type = DONATION | INSCRIPTION | SUBSCRIPTION | RECURRENT_DONATION | OPTION
-        Http http = new Http();
-        HttpRequest request = new HttpRequest();
-        request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/actions.json?from='+fromdate+'&results_per_page=1000');//back to 10000
-        request.setMethod('GET');
-        request.setTimeout(20000);
-        HttpResponse response = http.send(request);    
-        List<action> actions = new List<action>();
-        // If the request is successful, parse the JSON response.
-        if (response.getStatusCode() == 200) {
-            // Deserialize the JSON string into collections of primitive data types.
-            actionresource res= (actionresource) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),actionresource.class);
-            actions = res.resources;
-            System.debug('Received the following actions:');
-            System.debug(actions);        
-        }
-        return actions;
-    } */
+    /*  
+private static List<action> makeGetActionsCallout(String fromdate) {//type = DONATION | INSCRIPTION | SUBSCRIPTION | RECURRENT_DONATION | OPTION
+Http http = new Http();
+HttpRequest request = new HttpRequest();
+request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/actions.json?from='+fromdate+'&results_per_page=1000');//back to 10000
+request.setMethod('GET');
+request.setTimeout(20000);
+HttpResponse response = http.send(request);    
+List<action> actions = new List<action>();
+// If the request is successful, parse the JSON response.
+if (response.getStatusCode() == 200) {
+// Deserialize the JSON string into collections of primitive data types.
+actionresource res= (actionresource) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),actionresource.class);
+actions = res.resources;
+System.debug('Received the following actions:');
+System.debug(actions);        
+}
+return actions;
+} */
     
     private static action makeGetActionCallout(String actionId) {
         Http http = new Http();
