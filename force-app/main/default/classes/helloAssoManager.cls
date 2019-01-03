@@ -242,7 +242,13 @@ return a;
                                     for(Datacloud.MatchRecord duplicateMatchRecord : matchRecords) {
                                         duplicateIds.add(duplicateMatchRecord.getRecord().Id);
                                         System.debug('duplicateIds--'+duplicateIds);
-                                        d.Doublon_Potentiel_Compte__c=duplicateMatchRecord.getRecord().Id;
+                                        if(d.Doublon_Potentiel_Compte__c==null)d.Doublon_Potentiel_Compte__c=duplicateMatchRecord.getRecord().Id;
+                                        else{
+                                            if(d.Doublon_Potentiel_Compte2__c==null)d.Doublon_Potentiel_Compte2__c=duplicateMatchRecord.getRecord().Id;
+                                        else{
+                                            if(d.Doublon_Potentiel_Compte3__c==null)d.Doublon_Potentiel_Compte3__c=duplicateMatchRecord.getRecord().Id;
+                                        }
+                                        }
                                     }
                                     System.debug('Total duplicateIds--'+duplicateIds);
                                     d.details__c=string.join(duplicateIds,',');
@@ -284,6 +290,8 @@ return a;
                         // Operation failed, so get all errors                
                         for(Database.Error duplicateError : res.getErrors()) {
                             if (duplicateError instanceof Database.DuplicateError) {
+                                doublons__c d=new doublons__c();
+                                d.id_paiement__c=p.ID;
                                 duplicateResult = ((Database.DuplicateError)duplicateError).getDuplicateResult();
                                 System.debug('The following error has occurred.--duplicateResult--'+duplicateResult);  
                   
@@ -295,9 +303,19 @@ return a;
                                 for(Datacloud.MatchRecord duplicateMatchRecord : matchRecords) {
                                     duplicateIds.add(duplicateMatchRecord.getRecord().Id);
                                     System.debug('duplicateIds--'+duplicateIds);
+                                    if(d.Doublon_Potentiel_Contact__c==null)d.Doublon_Potentiel_Contact__c=duplicateMatchRecord.getRecord().Id;
+                                        else{
+                                            if(d.Doublon_Potentiel_Contact_2__c==null)d.Doublon_Potentiel_Contact_2__c=duplicateMatchRecord.getRecord().Id;
+                                        else{
+                                            if(d.Doublon_Potentiel_Contact_3__c==null)d.Doublon_Potentiel_Contact_3__c=duplicateMatchRecord.getRecord().Id;
+                                        }
+                                        }
                                     
                                 }
                                 System.debug('Total duplicateIds--'+duplicateIds);
+                                d.details__c=string.join(duplicateIds,',');
+                                    d.infos__c=json.serializePretty(p);
+                                    insert d;
                             }
                             else system.debug('This is something else');
                         }

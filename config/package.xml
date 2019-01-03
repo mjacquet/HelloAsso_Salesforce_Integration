@@ -11,7 +11,12 @@
     </types>
      <types>
         <members>ActionProcessDuplicate</members>
+        <members>ActionProcessDuplicateIgnore</members>
         <name>AuraDefinitionBundle</name>
+    </types>
+    <types>
+        <members>Doublon_API_Page_d_enregistrement</members>
+        <name>FlexiPage</name>
     </types>
     <types>
         <members>adhesion</members>
@@ -23,7 +28,7 @@
         <members>Contact.contact_comment_connu__c</members>
         <members>Opportunity.Demande_adhesion__c</members>
         <members>Campaign.helloassoid__c</members>
-        <members>npe01__OppPayment__c.Plateforme_de_paiement__c</members>
+        <!--<members>npe01__OppPayment__c.Plateforme_de_paiement__c</members>-->
         <members>Contact.Moyens_de_Paiement_ann_e_derni_re__c</members>
         <members>Contact.Moyens_de_Paiement_annee_en_cours__c</members>
         <name>CustomField</name>

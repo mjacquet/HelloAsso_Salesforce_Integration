@@ -13,7 +13,7 @@
         targetRecord="{!v.record}"
         targetFields="{!v.simpleRecord}"
         targetError="{!v.error}"
-        recordUpdated="{! c.dedup }"/>
+        recordUpdated="{! c.nodedup }"/>
     
     <aura:if isTrue="{!v.hasErrors}">
         <div class="userCreateError">
@@ -22,7 +22,7 @@
                 {!v.errorFromDedup}
             </ui:message>
         </div>
-       <!--<aura:set attribute="else">
+      <!--  <aura:set attribute="else">
             <lightning:button variant="brand" label="Re-Processer (j'ai fais le nécessaire)" onclick="{! c.dedup }" /><br/>
             <lightning:button variant="brand" label="Re-processer (ignorer le doublon)" onclick="{! c.nodedup }" /><br/>
         </aura:set>-->
