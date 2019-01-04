@@ -19,6 +19,10 @@
         <name>FlexiPage</name>
     </types>
     <types>
+        <members>Doublons__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
         <members>adhesion</members>
         <name>ApexTrigger</name>
     </types>

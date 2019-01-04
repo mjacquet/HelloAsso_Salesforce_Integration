@@ -2,12 +2,16 @@
 global with sharing class helloAssoManager implements Schedulable {
     //Lightning controler
     @AuraEnabled
-      public static void processDuplicate(String pId,boolean dedup ) {
+      public static void processDuplicate(String dId,String pId,boolean dedup ) {
          Payment p=getPayment(pId); 
                 for (Integer i = 0; i < p.actions.size(); i++) {
                     p.actions[i]=getAction(p.actions[i].Id);
                 }      
                 processPayment(p,dedup);
+          		system.debug('ID doublon '+dId);
+                doublons__c d=[SELECT id, statut__c FROM doublons__c WHERE id=:dId];
+                d.statut__c='Traiter';
+                update d;
    		}
     
     
