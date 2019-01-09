@@ -3,7 +3,7 @@ global with sharing class helloAssoManager implements Schedulable {
     //Lightning controler
     @AuraEnabled
       public static void processDuplicate(String dId,String pId,boolean dedup ) {
-         Payment p=getPayment(pId); 
+         		Payment p=getPayment(pId); 
                 for (Integer i = 0; i < p.actions.size(); i++) {
                     p.actions[i]=getAction(p.actions[i].Id);
                 }      
@@ -11,7 +11,9 @@ global with sharing class helloAssoManager implements Schedulable {
           		system.debug('ID doublon '+dId);
                 doublons__c d=[SELECT id, statut__c FROM doublons__c WHERE id=:dId];
                 d.statut__c='Traiter';
-                update d;
+          		npe01__OppPayment__c pa=[SELECT id from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c = :p.id LIMIT 1];
+                d.paiement__c=pa.id;
+          		update d;
    		}
     
     
