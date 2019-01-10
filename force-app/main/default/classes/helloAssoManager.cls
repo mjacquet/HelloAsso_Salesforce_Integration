@@ -384,7 +384,7 @@ return a;
                     donation=[Select id,amount from opportunity where id=:donation.id FOR UPDATE];
                     
                 }
-                else
+                else{
                     //let's update the donation
                     donation.name=p.payer_first_name+' '+p.payer_last_name+' donation '+p.ddate.format();
                     donation.amount=a.amount;   
