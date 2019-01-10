@@ -37,7 +37,7 @@ global with sharing class helloAssoManager implements Schedulable {
                 processPayment(p,false); 
                 return 'processed';
             }
-            else{ // https://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/2018-01-0T00:00:00@50@1
+            else{ // https://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/2018-01-01T00:00:00@50@1
                 String[]params=pid.split('\\@');
                 List<payment> ps=makeGetPaymentsCallout(params[0],params[1],params[2]);
                 processPayments(ps); 
@@ -218,7 +218,7 @@ return a;
                         acc.shippingCity=p.payer_city;
                         acc.shippingCountry=p.payer_country;
                         acc.name=p.payer_society;
-                        if(ignoreDuplicates)acc.ignore_duplicate__c=true;
+                        //if(ignoreDuplicates)acc.ignore_duplicate__c=true; lets ignore account duplicate for now
                         // insert acc;
                         Database.SaveResult res=DataBase.insert(acc,false);
                         
@@ -227,7 +227,7 @@ return a;
                             System.debug('Successfully inserted Account. account ID: ' + res.getId());
                             
                         }
-                        else {
+                      /* else {
                             
                             Datacloud.DuplicateResult duplicateResult;
                             List<Datacloud.MatchRecord> matchRecords;
@@ -264,7 +264,7 @@ return a;
                                 else System.debug('This is something else'); 
                             }
                             return false;
-                        }
+                        }*/
                         System.Debug(acc);
                         con.GW_Volunteers__Volunteer_Organization__c=p.payer_society;
                         con.accountid=res.getId();
@@ -345,10 +345,10 @@ return a;
                     npe03__Recurring_Donation__c rd=new npe03__Recurring_Donation__c();
                     List <npe03__Recurring_Donation__c> rds=new List<npe03__Recurring_Donation__c>();
                     if(p.payer_is_society){
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid];
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid and npe03__Open_Ended_Status__c='Open'];
                     }
                     else{
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id];
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id and npe03__Open_Ended_Status__c='Open'];
                     }
                     if(rds.isEmpty()){
                         
@@ -367,13 +367,24 @@ return a;
                         insert rd;
                     }
                     else rd=rds[0];
-                    
-                    donation=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' and closeDate=THIS_MONTH LIMIT 1 ];//FOR UPDATE
-                    if(donation==null)donation=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' order by closeDate asc LIMIT 1 ];//FOR UPDATE
+                    system.debug('Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName=\'Pledged\' and closeDate<:a.ddate.date().addDays(5) and closeDate>:a.ddate.date().addDays(-5)');
+                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' and closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
+                    if(ds.isEmpty()){
+                        list<opportunity> ds2=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' and CALENDAR_MONTH(CloseDate)=:p.ddate.month()];
+                        if(ds2.isEmpty()){
+                            list<opportunity> ds3=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' order by closeDate asc LIMIT 1 ];//FOR UPDATE
+                            if(ds3.isempty()){
+                                throw new applicationException('No more open opportunities on this recurrent donation: '+rd.id);
+                            }
+                            else donation=ds3[0];
+                        }
+                        else donation=ds2[0];
+                    }
+                    else donation=ds[0];
                     donation=[Select id,amount from opportunity where id=:donation.id FOR UPDATE];
                     
                 }
-                else{
+                else
                     //let's update the donation
                     donation.name=p.payer_first_name+' '+p.payer_last_name+' donation '+p.ddate.format();
                     donation.amount=a.amount;   
@@ -624,4 +635,5 @@ return actions;
         public Datetime start_date;
         public Datetime end_date;
     }
+    public class applicationException extends Exception {}
 }
