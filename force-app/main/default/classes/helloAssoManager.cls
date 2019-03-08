@@ -206,7 +206,7 @@ return a;
                 
                 // let's attach to a contact. Here based on email. We don't handle existing duplicates, that will be handled in Salesforce.
                 System.Debug('Contact (+household or Organization)');
-                List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email from contact where email=:p.payer_email FOR UPDATE];
+                List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email FOR UPDATE];
                 Contact con=new contact();
                 if(cs.isEmpty()){
                     //No contact with this email. let's create one.
@@ -330,12 +330,19 @@ return a;
                     
                     
                     
-                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() FOR UPDATE];
+                    con=[SELECT firstname,lastname, email, account.name,accountid,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where id=:res.getId() FOR UPDATE];
                     donation.npsp__Primary_Contact__c=con.id;
                     donation.Accountid=con.accountid;
                 }
                 else {//maybe we can add a loop to update info or add info from this payment.
                     con=cs[0];
+                    // logic to check if address is different between SF and Helooasso
+                    if((con.MailingStreet!=p.payer_address || con.mailingPostalCode!=p.payer_zip_code || con.mailingCity!=p.payer_city || con.mailingCountry!=p.payer_country) && (con.description==null || !con.description.contains('HelloAsso Adresse'))){
+                        con.description=con.description+'\r\n HelloAsso Adresse Différente: \r\n';
+                        con.description=con.description + ' ' + p.payer_address + ' ' + p.payer_zip_code + ' ' + p.payer_city + ' ' + p.payer_country;
+                        update con;
+                    }
+                    //end check address
                     donation.npsp__Primary_Contact__c=cs[0].id;
                     donation.Accountid=cs[0].accountid;
                 }
