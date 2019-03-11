@@ -152,7 +152,7 @@ return a;
             processPayment(p,ignoreDuplicates); 
         }
     }
-    
+
     
     //SCHEDULED function
     global void execute(SchedulableContext ctx) {
@@ -337,7 +337,7 @@ return a;
                 else {//maybe we can add a loop to update info or add info from this payment.
                     con=cs[0];
                     // logic to check if address is different between SF and Helooasso
-                    if((con.MailingStreet!=p.payer_address || con.mailingPostalCode!=p.payer_zip_code || con.mailingCity!=p.payer_city || con.mailingCountry!=p.payer_country) && (con.description==null || !con.description.contains('HelloAsso Adresse'))){
+                    if((con.MailingStreet!=p.payer_address || con.mailingPostalCode!=p.payer_zip_code || con.mailingCity!=p.payer_city || con.mailingCountry!=p.payer_country) && (con.description==null || !con.description.contains('HelloAsso Adresse'))){
                         con.description=con.description+'\r\n HelloAsso Adresse Différente: \r\n';
                         con.description=con.description + ' ' + p.payer_address + ' ' + p.payer_zip_code + ' ' + p.payer_city + ' ' + p.payer_country;
                         update con;
