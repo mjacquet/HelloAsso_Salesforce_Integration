@@ -1,5 +1,78 @@
 @RestResource(urlMapping='/')
 global with sharing class helloAssoManager implements Schedulable {
+   //For batch revamp 
+    public static void doBatch() {
+    	Database.executeBatch(new HelloAssoSyncBatchable(), 1);
+	}
+    
+    public static void processPaymentsBatch(List<payment> ps){
+        //Process to remove the payments already processed.
+        List<String>pids=new list<string>();
+        Map<String,Payment> mp=new Map<String,Payment>();
+        for(payment p : ps){
+            pids.add(p.id);
+            mp.put(p.id,p);
+        }
+        System.debug('map before filtering (size: '+pids.size()+')');
+        System.debug(mp);
+        List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c IN :pids];
+        for(npe01__OppPayment__c npp : npsp_ps){
+            mp.remove(npp.npe01__Check_Reference_Number__c);
+        }
+        //let's also filter by removing payment where there is no donations...
+        List<String> cpids=new list<string>();
+        List<String> conids=new list<string>();
+        list <payment> fps=mp.values();
+        for(payment fp :fps){
+            Boolean toProcess=false;
+            for(action a:fp.actions){
+                if(a.type=='DONATION' || a.type=='RECURRENT_DONATION'){//'RECURRENT_DONATION
+                    toProcess=true;
+                    cpids.add(a.id_campaign);
+                }
+            }
+            if(!toProcess)mp.remove(fp.id);
+            else conids.add(fp.payer_email);
+        }
+        
+        List<payment> ps_toprocess=mp.values();
+        System.debug('map after filtering(size: '+ps_toprocess.size()+')');
+        System.debug(ps_toprocess);
+        
+ 		List<string> campaignsIdToInsert=new list <string>();
+        List<payment> fullps_toprocess=new List<payment>();
+        for(payment p : ps_toprocess){
+            p=getPayment(p.Id);
+            if(p!=null){
+                for (Integer i = 0; i < p.actions.size(); i++) {
+                    p.actions[i]=getAction(p.actions[i].Id);
+                    List<Campaign> camps=[SELECT id from campaign where helloassoid__c=:p.actions[i].id_campaign];
+                    if(camps.isEmpty()){
+                        campaignsIdToInsert.add(p.actions[i].id_campaign);
+                    }
+                } 
+             fullps_toprocess.add(p);  
+            }
+        } 
+        //insert campaign that need to be added
+        List<campaign> campaignsToInsert=new list <campaign>();
+        for(String cid : campaignsIdToInsert){
+        	Campaign camp=new campaign();
+            haCampaign hac=makeGetCampaignCallout(cid);
+            camp.name=hac.name;
+            camp.helloassoid__c=cid;
+            campaignsToInsert.add(camp);
+            System.Debug(camp);
+          }
+        insert campaignsToInsert;
+      	//process payments
+        for(payment p : fullps_toprocess){
+            processPayment(p,false); 
+        }
+    }
+    
+    
+    //end for batch revamp
     //Lightning controler
     @AuraEnabled
       public static void processDuplicate(String dId,String pId,boolean dedup ) {
@@ -152,7 +225,7 @@ return a;
             processPayment(p,ignoreDuplicates); 
         }
     }
-
+    
     
     //SCHEDULED function
     global void execute(SchedulableContext ctx) {
@@ -171,6 +244,27 @@ return a;
         
         processPayments(ps); 
     }
+    
+    
+    public static Integer makeGetPagesCallout(String fromdate,String rpp) {
+        Http http = new Http();
+        HttpRequest request = new HttpRequest();
+        System.debug('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');
+        request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');//BACK to 10000 after test
+        request.setMethod('GET');
+        request.setTimeout(20000);
+        HttpResponse response = http.send(request);    
+        Integer pages = 0;
+        // If the request is successful, parse the JSON response.
+        if (response.getStatusCode() == 200) {
+            // Deserialize the JSON string into collections of primitive data types.
+            resource res= (resource) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),resource.class);
+            pages=res.pagination.max_page;
+            System.debug('Number of pages:');
+            System.debug(pages);           
+        }
+        return pages;
+    } 
     
     
     //PRIVATE functions
@@ -330,7 +424,7 @@ return a;
                     
                     
                     
-                    con=[SELECT firstname,lastname, email, account.name,accountid,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where id=:res.getId() FOR UPDATE];
+                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() FOR UPDATE];
                     donation.npsp__Primary_Contact__c=con.id;
                     donation.Accountid=con.accountid;
                 }
@@ -400,28 +494,30 @@ return a;
                 donation.closedate=p.ddate.date();
                 donation.StageName='Posted';
                 donation.description='';
-                for(custom_infos ci:a.custom_infos){
-                    donation.description+=ci.label+ ': '+ci.value+'\n';
-                    if(ci.label.contains('adhérent')){
-                        if(ci.value=='Oui'){
-                            donation.Demande_adhesion__c=true;//créer une adhésion.
+                if(a.custom_infos!=null){
+                    for(custom_infos ci:a.custom_infos){
+                        donation.description+=ci.label+ ': '+ci.value+'\n';
+                        if(ci.label.contains('adhérent')){
+                            if(ci.value=='Oui'){
+                                donation.Demande_adhesion__c=true;//créer une adhésion.
+                            }
+                            else donation.Demande_adhesion__c=false;
+                            //pour slimpay egalement: 
                         }
-                        else donation.Demande_adhesion__c=false;
-                        //pour slimpay egalement: 
-                    }
-                    if(ci.label.contains('newsletter')){
-                        if(ci.value=='Oui'){
-                            con.newsletter__c=true;
+                        if(ci.label.contains('newsletter')){
+                            if(ci.value=='Oui'){
+                                con.newsletter__c=true;
+                                update con;
+                            }
+                            else{
+                                con.newsletter__c=false;
+                                update con;
+                            }
+                        }
+                        if(ci.label.contains('connu')){
+                            con.contact_comment_connu__c=ci.value;
                             update con;
                         }
-                        else{
-                            con.newsletter__c=false;
-                            update con;
-                        }
-                    }
-                    if(ci.label.contains('connu')){
-                        con.contact_comment_connu__c=ci.value;
-                        update con;
                     }
                 }
                 
@@ -432,6 +528,7 @@ return a;
                 }
                 
                 System.Debug('Donation');
+                System.Debug(donation);
                 upsert donation;
                 System.Debug(donation);
                 
@@ -462,7 +559,7 @@ return a;
     }
     
     
-    private static List<payment> makeGetPaymentsCallout(String fromdate,String rpp, String page) {
+    public static List<payment> makeGetPaymentsCallout(String fromdate,String rpp, String page) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
         System.debug('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);

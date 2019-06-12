@@ -87,7 +87,7 @@
             </componentInstanceProperties>
             <componentInstanceProperties>
                 <name>updateQuickActionName</name>
-                <value>Contact.npsp__Quick_Update</value>
+                <value>Contact.Contacts_vue_doublon</value>
             </componentInstanceProperties>
             <componentName>console:relatedRecord</componentName>
             <visibilityRule>
@@ -112,7 +112,7 @@
             </componentInstanceProperties>
             <componentInstanceProperties>
                 <name>updateQuickActionName</name>
-                <value>Contact.npsp__Quick_Update</value>
+                <value>Contact.Contacts_vue_doublon</value>
             </componentInstanceProperties>
             <componentName>console:relatedRecord</componentName>
             <visibilityRule>
@@ -137,7 +137,7 @@
             </componentInstanceProperties>
             <componentInstanceProperties>
                 <name>updateQuickActionName</name>
-                <value>Contact.npsp__Quick_Update</value>
+                <value>Contact.Contacts_vue_doublon</value>
             </componentInstanceProperties>
             <componentName>console:relatedRecord</componentName>
             <visibilityRule>
