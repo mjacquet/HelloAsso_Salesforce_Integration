@@ -1,5 +1,5 @@
 @RestResource(urlMapping='/')
-global with sharing class helloAssoManager implements Schedulable {
+global without sharing class helloAssoManager implements Schedulable {
    //For batch revamp 
     public static void doBatch() {
     	Database.executeBatch(new HelloAssoSyncBatchable(), 1);
@@ -20,25 +20,24 @@ global with sharing class helloAssoManager implements Schedulable {
             mp.remove(npp.npe01__Check_Reference_Number__c);
         }
         //let's also filter by removing payment where there is no donations...
-        List<String> cpids=new list<string>();
-        List<String> conids=new list<string>();
+       // List<String> cpids=new list<string>();
+      //  List<String> conids=new list<string>();
         list <payment> fps=mp.values();
         for(payment fp :fps){
             Boolean toProcess=false;
             for(action a:fp.actions){
                 if(a.type=='DONATION' || a.type=='RECURRENT_DONATION'){//'RECURRENT_DONATION
                     toProcess=true;
-                    cpids.add(a.id_campaign);
                 }
             }
             if(!toProcess)mp.remove(fp.id);
-            else conids.add(fp.payer_email);
+           // else conids.add(fp.payer_email);
         }
         
         List<payment> ps_toprocess=mp.values();
         System.debug('map after filtering(size: '+ps_toprocess.size()+')');
         System.debug(ps_toprocess);
-        
+        /*
  		List<string> campaignsIdToInsert=new list <string>();
         List<payment> fullps_toprocess=new List<payment>();
         for(payment p : ps_toprocess){
@@ -64,15 +63,16 @@ global with sharing class helloAssoManager implements Schedulable {
             campaignsToInsert.add(camp);
             System.Debug(camp);
           }
-        insert campaignsToInsert;
+        insert campaignsToInsert;*/
       	//process payments
-        for(payment p : fullps_toprocess){
+        for(payment p : ps_toprocess){
             processPayment(p,false); 
         }
     }
     
     
     //end for batch revamp
+   
     //Lightning controler
     @AuraEnabled
       public static void processDuplicate(String dId,String pId,boolean dedup ) {
@@ -102,7 +102,7 @@ global with sharing class helloAssoManager implements Schedulable {
         System.debug(pId);
         if(!String.isBlank(pID)&& pid!='helloasso'){
             
-            if(!pid.contains('@')){//http://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/00387654678
+            if(!pid.contains('@')){//http://zerotest-zerowastefrance.cs83.force.com/helloasso/services/apexrest/helloasso/00387654678
                 Payment p=getPayment(pId); 
                 for (Integer i = 0; i < p.actions.size(); i++) {
                     p.actions[i]=getAction(p.actions[i].Id);
@@ -154,7 +154,7 @@ global with sharing class helloAssoManager implements Schedulable {
         payment p=makeGetPaymentCallout(paymentId);
         system.debug(p);
         return p;
-    } 
+    }
     
     public static action getAction(String actionId){
         system.debug('getAction');
@@ -270,6 +270,9 @@ return a;
     //PRIVATE functions
     private static boolean doProcessPayment(payment p,boolean ignoreDuplicates){
         System.Debug('Processing payment with Id '+p.ID);
+        system.debug('userinfo');
+        system.debug(Userinfo.getUserId());
+        system.debug(Userinfo.getUserName());
         System.Debug(p);   
         //We will need to loop through actions to process only donations, not inscriptions (ticket sales for event).
         //Why are there some payments without actions??? Bug opened with helloasso (ticket #143935). Ignoring those payments for now.
@@ -282,7 +285,7 @@ return a;
                 Opportunity donation=new Opportunity();
                 
                 //Looking for the campaign to link the donation
-                System.Debug('campaign');
+               /* System.Debug('campaign');
                 List<Campaign> camps=[SELECT id from campaign where helloassoid__c=:a.id_campaign];
                 if(camps.isEmpty()){
                     Campaign camp=new campaign();
@@ -296,11 +299,11 @@ return a;
                 else {
                     donation.campaignId=camps[0].id;
                     System.Debug(camps[0].id);
-                }
+                }*/
                 
                 // let's attach to a contact. Here based on email. We don't handle existing duplicates, that will be handled in Salesforce.
                 System.Debug('Contact (+household or Organization)');
-                List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email FOR UPDATE];
+                List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email ];//FOR UPDATE
                 Contact con=new contact();
                 if(cs.isEmpty()){
                     //No contact with this email. let's create one.
@@ -423,8 +426,8 @@ return a;
                     }
                     
                     
-                    
-                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() FOR UPDATE];
+                    System.debug('SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() FOR UPDATE ' + res.getId());
+                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() ];//FOR UPDATE
                     donation.npsp__Primary_Contact__c=con.id;
                     donation.Accountid=con.accountid;
                 }
@@ -445,12 +448,16 @@ return a;
                     //looking for existing recurrent_donation
                     npe03__Recurring_Donation__c rd=new npe03__Recurring_Donation__c();
                     List <npe03__Recurring_Donation__c> rds=new List<npe03__Recurring_Donation__c>();
-                    if(p.payer_is_society){
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid and npe03__Open_Ended_Status__c='Open'];
+                    List <Account> mxaccos=[SELECT id,RecordType.DeveloperName from account where id = :con.accountid ];
+                   
+                    //if newly create contact, soql returns nothing. need to take care of that. 
+                    if(p.payer_is_society && (!mxaccos.isempty() && mxaccos[0].RecordType.DeveloperName=='Organization')){
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid order by Id desc];// and npe03__Open_Ended_Status__c='Open'
                     }
                     else{
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id and npe03__Open_Ended_Status__c='Open'];
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id order by Id desc];// and npe03__Open_Ended_Status__c='Open'
                     }
+                    
                     if(rds.isEmpty()){
                         
                         if(p.payer_is_society){ 
@@ -462,27 +469,38 @@ return a;
                             rd.Name='Donation récurrente - '+con.Firstname+' ' +con.Lastname;
                         }
                         rd.npe03__Amount__c=a.amount;
-                        rd.npe03__Date_Established__c=a.ddate.date();
+                        rd.npe03__Date_Established__c=p.ddate.date();
                         rd.npe03__Installment_Period__c='Monthly';
                         rd.npe03__Open_Ended_Status__c='Open';
                         insert rd;
                     }
                     else rd=rds[0];
+                    
                     system.debug('Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName=\'Pledged\' and closeDate<:a.ddate.date().addDays(5) and closeDate>:a.ddate.date().addDays(-5)');
-                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' and closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
+                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged' or stageName='Withdrawn') and closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
                     if(ds.isEmpty()){
-                        list<opportunity> ds2=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' and CALENDAR_MONTH(CloseDate)=:p.ddate.month()];
+                        list<opportunity> ds2=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged' or stageName='Withdrawn') and CALENDAR_MONTH(CloseDate)=:p.ddate.month()];
                         if(ds2.isEmpty()){
-                            list<opportunity> ds3=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName='Pledged' order by closeDate asc LIMIT 1 ];//FOR UPDATE
+                            list<opportunity> ds3=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged' or stageName='Withdrawn') order by closeDate asc LIMIT 1 ];//FOR UPDATE
                             if(ds3.isempty()){
-                                throw new applicationException('No more open opportunities on this recurrent donation: '+rd.id);
+                                //we shoudl revamp after bulk treatment
+                                list <doublons__c> doubs=[SELECT id from doublons__c where Doublon_Potentiel_Contact_3__c=:con.id AND statut__C='A traiter'];
+                                if(doubs.isEmpty()){
+                                    doublons__c d=new doublons__c();
+                                    d.id_paiement__c=p.ID;
+                                    d.infos__c=json.serializePretty(p);
+                                    d.Doublon_Potentiel_Contact_3__c=con.id;
+                                	insert d;
+                                }
+                                return false;
+                               // throw new applicationException('No more open opportunities on this recurrent donation: '+rd.id);
                             }
                             else donation=ds3[0];
                         }
                         else donation=ds2[0];
                     }
                     else donation=ds[0];
-                    donation=[Select id,amount from opportunity where id=:donation.id FOR UPDATE];
+                    donation=[Select id,amount from opportunity where id=:donation.id ];//FOR UPDATE
                     
                 }
                 else{
@@ -533,7 +551,7 @@ return a;
                 System.Debug(donation);
                 
                 //The payment is automatically created when inserting Donation - lets update payment.
-                List<npe01__OppPayment__c> npspps=[SELECT id from npe01__OppPayment__c where npe01__Opportunity__c=:donation.id];
+                List<npe01__OppPayment__c> npspps=[SELECT id,npe01__Payment_Amount__c,npe01__Check_Reference_Number__c,npe01__Payment_Method__c,Plateforme_de_paiement__c from npe01__OppPayment__c where npe01__Opportunity__c=:donation.id];
                 System.Debug('payments');
                 
                 if(npspps.isEmpty()){
@@ -575,6 +593,19 @@ return a;
             payments = res.resources;
             System.debug('Received the following payments:');
             System.debug(payments);           
+        }
+        else{
+         	if (response.getStatusCode() == 401) {
+                //wait for 2 seconds and retry
+                Long startTime = DateTime.now().getTime();
+                Long finishTime = DateTime.now().getTime();
+                while ((finishTime - startTime) < 2000) {
+                    //sleep for 9s
+                    finishTime = DateTime.now().getTime();
+                }
+                return makeGetPaymentsCallout(fromdate,rpp,page);
+            }
+            else throw new applicationException('API Response Code unhandled: '+response.getStatusCode());
         }
         return payments;
     } 
@@ -638,6 +669,7 @@ return actions;
         }
         return action;
     } 
+    /*
     private static haCampaign makeGetCampaignCallout(String CampId) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
@@ -656,7 +688,7 @@ return actions;
         }
         return haCampaign;
     } 
-    
+*/    
     
     //INNER CLASSES   
     global class actionresource{

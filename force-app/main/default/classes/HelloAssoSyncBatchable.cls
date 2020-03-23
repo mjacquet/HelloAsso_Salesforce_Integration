@@ -9,13 +9,18 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
 
     global Iterable<String> start(Database.BatchableContext context){
         //This should be in the constructor or from a custom setting
+        system.debug('userinfo');
+        system.debug(Userinfo.getUserId());
+        system.debug(Userinfo.getUserName());
+        
         datetime myDateTime = datetime.now();
         mydatetime=myDateTime.addHours(-48);
-        String Fromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
+       // String Fromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
+         String Fromdate=mydateTime.format('2019-01-01\'T\'00:00:00');
         
         //call and get the pages
         //10 is the number of results per page. should come from custom setting
-        Integer pages = helloAssoManager.makeGetPagesCallout(Fromdate,'10');
+        Integer pages = helloAssoManager.makeGetPagesCallout(Fromdate+'Z','10');
         System.Debug(pages);
         for(Integer i=1;i<=pages;i++){
             calloutPages.add(i.format());
@@ -25,10 +30,13 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
 
     global void execute(Database.BatchableContext context, String[] page) {
         System.debug(page);
+        system.debug('userinfo');
+        system.debug(Userinfo.getUserId());
+        system.debug(Userinfo.getUserName());
         datetime myDateTime = datetime.now();
         mydatetime=myDateTime.addHours(-48);
-        String Fromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
-        List<HelloAssoManager.payment> ps=HelloAssoManager.makeGetPaymentsCallout(Fromdate,'10',page[0]);
+        String Fromdate=mydateTime.format('2019-01-01\'T\'00:00:00');
+        List<HelloAssoManager.payment> ps=HelloAssoManager.makeGetPaymentsCallout(Fromdate+'Z','10',page[0]);
         HelloAssoManager.processPaymentsBatch(ps);
         /*for (Contact contact : batchContacts) {
             service.syncContact(contact);
