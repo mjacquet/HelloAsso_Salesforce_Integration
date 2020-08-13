@@ -1,11 +1,36 @@
-@RestResource(urlMapping='/')
-global without sharing class helloAssoManager implements Schedulable {
-   //For batch revamp 
-    public static void doBatch() {
+global class helloAssoManager implements Schedulable {
+   
+    public final Integer SYNC_BATCH_SIZE;
+    private final String PAYMENT_PLATFORM_PICKLIST_VALUE ;
+    private final String PAYMENT_METHOD_CHECK_PICKLIST_VALUE ;
+    private final String PAYMENT_METHOD_SEPA_PICKLIST_VALUE ;
+    private final String PAYMENT_METHOD_CB_PICKLIST_VALUE ;
+    private final String HELLOASSO_ORGID ;
+    public final String NOTIFICATION_EMAIL;
+    public final Integer DAYS_DELTA;
+    
+    public helloAssoManager(){
+        HelloAsso_Sync_Settings__mdt settings = [SELECT helloasso_orgid__c,Batch_Size__c, email__c, days_delta__c,Payment_Method_SEPA__C,Payment_Method_CB__C,Payment_Method_Check__C,Payment_Platform__c FROM HelloAsso_Sync_Settings__mdt Where DeveloperName='Main'];
+        SYNC_BATCH_SIZE=settings.Batch_Size__c.intValue();
+        NOTIFICATION_EMAIL=settings.email__c;
+        DAYS_DELTA=settings.days_delta__c.intValue();
+        PAYMENT_METHOD_CHECK_PICKLIST_VALUE=settings.Payment_Method_check__C;
+        PAYMENT_METHOD_SEPA_PICKLIST_VALUE=settings.Payment_Method_SEPA__C;
+        PAYMENT_METHOD_CB_PICKLIST_VALUE=settings.Payment_Method_CB__C;
+        PAYMENT_PLATFORM_PICKLIST_VALUE=settings.Payment_Platform__c;
+        HELLOASSO_ORGID=settings.helloasso_orgid__c;
+    }
+    
+    //scheduled function
+    global void execute(SchedulableContext SC) {
+        doBatch();
+      }
+
+    public void doBatch() {
     	Database.executeBatch(new HelloAssoSyncBatchable(), 1);
 	}
     
-    public static void processPaymentsBatch(List<payment> ps){
+    public void processPaymentsBatch(List<payment> ps){
         //Process to remove the payments already processed.
         List<String>pids=new list<string>();
         Map<String,Payment> mp=new Map<String,Payment>();
@@ -19,9 +44,7 @@ global without sharing class helloAssoManager implements Schedulable {
         for(npe01__OppPayment__c npp : npsp_ps){
             mp.remove(npp.npe01__Check_Reference_Number__c);
         }
-        //let's also filter by removing payment where there is no donations...
-       // List<String> cpids=new list<string>();
-      //  List<String> conids=new list<string>();
+
         list <payment> fps=mp.values();
         for(payment fp :fps){
             Boolean toProcess=false;
@@ -31,280 +54,32 @@ global without sharing class helloAssoManager implements Schedulable {
                 }
             }
             if(!toProcess)mp.remove(fp.id);
-           // else conids.add(fp.payer_email);
         }
         
         List<payment> ps_toprocess=mp.values();
         System.debug('map after filtering(size: '+ps_toprocess.size()+')');
         System.debug(ps_toprocess);
-        /*
- 		List<string> campaignsIdToInsert=new list <string>();
-        List<payment> fullps_toprocess=new List<payment>();
-        for(payment p : ps_toprocess){
-            p=getPayment(p.Id);
-            if(p!=null){
-                for (Integer i = 0; i < p.actions.size(); i++) {
-                    p.actions[i]=getAction(p.actions[i].Id);
-                    List<Campaign> camps=[SELECT id from campaign where helloassoid__c=:p.actions[i].id_campaign];
-                    if(camps.isEmpty()){
-                        campaignsIdToInsert.add(p.actions[i].id_campaign);
-                    }
-                } 
-             fullps_toprocess.add(p);  
-            }
-        } 
-        //insert campaign that need to be added
-        List<campaign> campaignsToInsert=new list <campaign>();
-        for(String cid : campaignsIdToInsert){
-        	Campaign camp=new campaign();
-            haCampaign hac=makeGetCampaignCallout(cid);
-            camp.name=hac.name;
-            camp.helloassoid__c=cid;
-            campaignsToInsert.add(camp);
-            System.Debug(camp);
-          }
-        insert campaignsToInsert;*/
       	//process payments
         for(payment p : ps_toprocess){
-            processPayment(p,false); 
+            processPayment(p); 
         }
     }
-    
-    
-    //end for batch revamp
-   
-    //Lightning controler
-    @AuraEnabled
-      public static void processDuplicate(String dId,String pId,boolean dedup ) {
-         		Payment p=getPayment(pId); 
-                for (Integer i = 0; i < p.actions.size(); i++) {
-                    p.actions[i]=getAction(p.actions[i].Id);
-                }      
-                processPayment(p,dedup);
-          		system.debug('ID doublon '+dId);
-                doublons__c d=[SELECT id, statut__c FROM doublons__c WHERE id=:dId];
-                d.statut__c='Traiter';
-          		npe01__OppPayment__c pa=[SELECT id from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c = :p.id LIMIT 1];
-                d.paiement__c=pa.id;
-          		update d;
-   		}
-    
-    
-    //REST Endpoints exposed
-    
-    @HttpGet
-    global static String GetPaiement() {
-        RestRequest request = RestContext.request;
-        // grab the caseId from the end of the URL
-        String pId = request.requestURI.substring(request.requestURI.lastIndexOf('/')+1);
-        
-        System.debug('GET received');
-        System.debug(pId);
-        if(!String.isBlank(pID)&& pid!='helloasso'){
-            
-            if(!pid.contains('@')){//http://zerotest-zerowastefrance.cs83.force.com/helloasso/services/apexrest/helloasso/00387654678
-                Payment p=getPayment(pId); 
-                for (Integer i = 0; i < p.actions.size(); i++) {
-                    p.actions[i]=getAction(p.actions[i].Id);
-                }      
-                processPayment(p,false); 
-                return 'processed';
-            }
-            else{ // https://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso/2018-01-01T00:00:00@50@1
-                String[]params=pid.split('\\@');
-                List<payment> ps=makeGetPaymentsCallout(params[0],params[1],params[2]);
-                processPayments(ps); 
-                return 'processed '+params[2];
-            }
-            
-        }
-        else return 'nothing to process';
-        
-        //URL: https://cs87.salesforce.com/services/apexrest/helloasso
-        //http://zerotest-zerowastefrancesbx.cs87.force.com/helloasso/services/apexrest/helloasso
-    }
-    @HttpPost
-    global static String postPaiement() {// this method will be called at every payment. We will then have a daily scheduled Apex thet will verify no payments falled throught the cracks.
-        System.debug('POST received');
-        System.debug(RestContext.request.params);
-        String pId=RestContext.request.params.get('id');
-        System.debug('payment ID to process: '+pId);
-        String aId=RestContext.request.params.get('action_id');
-        System.debug('action ID to process: '+aId);
-        
-        Payment p=getPayment(pId); 
-        for (Integer i = 0; i < p.actions.size(); i++) {
-            p.actions[i]=getAction(p.actions[i].Id);
-        }      
-        processPayment(p,false);   
-        return '';
-    }    
-    
-    //PUBLIC functions
-    
-    public static List<payment> getPayments(String fromdate){//'2018-08-17T17:09:47'
-        system.debug('getPayments');
-        List<payment> p=makeGetPaymentsCallout(fromdate,'1000','1');
-        system.debug(p);
-        return p;
-    } 
-    
-    public static payment getPayment(String paymentId){
-        system.debug('getPayment');
-        payment p=makeGetPaymentCallout(paymentId);
-        system.debug(p);
-        return p;
-    }
-    
-    public static action getAction(String actionId){
-        system.debug('getAction');
-        action a=makeGetActionCallout(actionId);
-        system.debug(a);
-        return a;
-    } 
-    /*   
-public static list<action> getActions(String fromdate){
-system.debug('getActions');
-List<action> a=makeGetActionsCallout(fromdate);
-system.debug(a);
-return a;
-} 
-*/   
-    public static void processPayment(payment p,boolean ignoreDuplicates){
-        List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c = :p.id];
-        if(npsp_ps.isempty()){
-            boolean bo=doProcessPayment(p,ignoreDuplicates);
-        } 
-    }
-    public static void processPayments(List<payment> ps){
-        //Process to remove the payments already processed.
-        List<String>pids=new list<string>();
-        Map<String,Payment> mp=new Map<String,Payment>();
-        for(payment p : ps){
-            pids.add(p.id);
-            mp.put(p.id,p);
-        }
-        System.debug('map before filtering (size: '+pids.size()+')');
-        System.debug(mp);
-        List<npe01__OppPayment__c> npsp_ps=[SELECT id,npe01__Check_Reference_Number__c from npe01__OppPayment__c where Plateforme_de_paiement__c='Helloasso' AND npe01__Check_Reference_Number__c IN :pids];
-        for(npe01__OppPayment__c npp : npsp_ps){
-            mp.remove(npp.npe01__Check_Reference_Number__c);
-        }
-        //let's also filter by removing payment where there is no donations...
-        List<String> cpids=new list<string>();
-        List<String> conids=new list<string>();
-        list <payment> fps=mp.values();
-        for(payment fp :fps){
-            Boolean toProcess=false;
-            for(action a:fp.actions){
-                if(a.type=='DONATION' || a.type=='RECURRENT_DONATION'){//'RECURRENT_DONATION
-                    toProcess=true;
-                    cpids.add(a.id_campaign);
-                }
-            }
-            if(!toProcess)mp.remove(fp.id);
-            else conids.add(fp.payer_email);
-        }
-        
-        List<payment> ps_toprocess=mp.values();
-        System.debug('map after filtering(size: '+ps_toprocess.size()+')');
-        System.debug(ps_toprocess);
-        
-        for(payment p : ps_toprocess){
-            futureProcessPayment(p.id,false);
-        }  
-    }
-    
-    @future(callout=true)
-    public static void futureProcessPayment(String pid,boolean ignoreDuplicates){
-        Payment p=getPayment(pId);
-        if(p!=null){
-            for (Integer i = 0; i < p.actions.size(); i++) {
-                p.actions[i]=getAction(p.actions[i].Id);
-            }      
-            processPayment(p,ignoreDuplicates); 
-        }
-    }
-    
-    
-    //SCHEDULED function
-    global void execute(SchedulableContext ctx) {
-        datetime myDateTime = datetime.now();
-        mydatetime=myDateTime.addHours(-25);
-        // datetime myactiondatetime=myDateTime.addHours(-120);
-        String Fromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
-        //  String ActionFromdate=mydateTime.format('yyyy-MM-dd\'T\'HH:mm:ss');
-        // fromdate='2018-10-02T00:00:01';//test
-        //  actionfromdate='2018-01-01T00:00:01';//test
-        System.debug('processing date: '+Fromdate);
-        //'2018-08-17T17:09:47';
-        List<payment> ps=getPayments(Fromdate);
-        System.debug('Received payments: '+ps.size());
-        //  List<action> acs=getActions(ActionFromdate);
-        
-        processPayments(ps); 
-    }
-    
-    
-    public static Integer makeGetPagesCallout(String fromdate,String rpp) {
-        Http http = new Http();
-        HttpRequest request = new HttpRequest();
-        System.debug('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');
-        request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');//BACK to 10000 after test
-        request.setMethod('GET');
-        request.setTimeout(20000);
-        HttpResponse response = http.send(request);    
-        Integer pages = 0;
-        // If the request is successful, parse the JSON response.
-        if (response.getStatusCode() == 200) {
-            // Deserialize the JSON string into collections of primitive data types.
-            resource res= (resource) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),resource.class);
-            pages=res.pagination.max_page;
-            System.debug('Number of pages:');
-            System.debug(pages);           
-        }
-        return pages;
-    } 
-    
-    
+ 
+ 
     //PRIVATE functions
-    private static boolean doProcessPayment(payment p,boolean ignoreDuplicates){
+    private void ProcessPayment(payment p){
         System.Debug('Processing payment with Id '+p.ID);
-        system.debug('userinfo');
-        system.debug(Userinfo.getUserId());
-        system.debug(Userinfo.getUserName());
         System.Debug(p);   
-        //We will need to loop through actions to process only donations, not inscriptions (ticket sales for event).
-        //Why are there some payments without actions??? Bug opened with helloasso (ticket #143935). Ignoring those payments for now.
-        //We get the campaign through the action
+ 
         for(action a: p.actions){
             System.Debug('Payment action');
-            if(a.type=='DONATION' || a.type=='RECURRENT_DONATION'){// . //if we already processed a donation, then it is a duplicate helloasso case #144372
+            if(a.type=='DONATION' || a.type=='RECURRENT_DONATION'){
                 //let's create the donation
-                
                 Opportunity donation=new Opportunity();
                 
-                //Looking for the campaign to link the donation
-               /* System.Debug('campaign');
-                List<Campaign> camps=[SELECT id from campaign where helloassoid__c=:a.id_campaign];
-                if(camps.isEmpty()){
-                    Campaign camp=new campaign();
-                    haCampaign hac=makeGetCampaignCallout(a.id_campaign);
-                    camp.name=hac.name;
-                    camp.helloassoid__c=a.id_campaign;
-                    insert camp;
-                    System.Debug(camp);
-                    donation.campaignId=camp.id;
-                }
-                else {
-                    donation.campaignId=camps[0].id;
-                    System.Debug(camps[0].id);
-                }*/
-                
-                // let's attach to a contact. Here based on email. We don't handle existing duplicates, that will be handled in Salesforce.
-                System.Debug('Contact (+household or Organization)');
-                List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email ];//FOR UPDATE
-                Contact con=new contact();
+               System.Debug('Contact (+household or Organization)');
+               Contact con=new contact(); 
+               List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email ];//FOR UPDATE
                 if(cs.isEmpty()){
                     //No contact with this email. let's create one.
                     System.Debug('Creating contact');
@@ -315,56 +90,12 @@ return a;
                         acc.shippingCity=p.payer_city;
                         acc.shippingCountry=p.payer_country;
                         acc.name=p.payer_society;
-                        //if(ignoreDuplicates)acc.ignore_duplicate__c=true; lets ignore account duplicate for now
-                        // insert acc;
-                        Database.SaveResult res=DataBase.insert(acc,false);
+                       
+                        insert acc;
                         
-                        if (res.isSuccess()) {
-                            // Operation was successful, so get the ID of the record that was processed
-                            System.debug('Successfully inserted Account. account ID: ' + res.getId());
-                            
-                        }
-                      /* else {
-                            
-                            Datacloud.DuplicateResult duplicateResult;
-                            List<Datacloud.MatchRecord> matchRecords;
-                            List<Id> duplicateIds = new List<id>();
-                            // Operation failed, so get all errors                
-                            for(Database.Error duplicateError : res.getErrors()) {
-                                if (duplicateError instanceof Database.DuplicateError) {
-                                    doublons__c d=new doublons__c();
-                                    d.id_paiement__c=p.ID;
-                                    duplicateResult = ((Database.DuplicateError)duplicateError).getDuplicateResult();
-                                    System.debug('The following error has occurred.--duplicateResult--'+duplicateResult);                    
-                                    for(Datacloud.MatchResult duplicateMatchResult : duplicateResult.getMatchResults()) {
-                                        matchRecords = duplicateMatchResult.getMatchRecords();
-                                        System.debug('The following error has occurred.--matchRecords--'+matchRecords);  
-                                        
-                                    }
-                                    System.debug('total.--matchRecords--'+matchRecords);  
-                                    for(Datacloud.MatchRecord duplicateMatchRecord : matchRecords) {
-                                        duplicateIds.add(duplicateMatchRecord.getRecord().Id);
-                                        System.debug('duplicateIds--'+duplicateIds);
-                                        if(d.Doublon_Potentiel_Compte__c==null)d.Doublon_Potentiel_Compte__c=duplicateMatchRecord.getRecord().Id;
-                                        else{
-                                            if(d.Doublon_Potentiel_Compte2__c==null)d.Doublon_Potentiel_Compte2__c=duplicateMatchRecord.getRecord().Id;
-                                        else{
-                                            if(d.Doublon_Potentiel_Compte3__c==null)d.Doublon_Potentiel_Compte3__c=duplicateMatchRecord.getRecord().Id;
-                                        }
-                                        }
-                                    }
-                                    System.debug('Total duplicateIds--'+duplicateIds);
-                                    d.details__c=string.join(duplicateIds,',');
-                                    d.infos__c=json.serializePretty(p);
-                                    insert d;
-                                }
-                                else System.debug('This is something else'); 
-                            }
-                            return false;
-                        }*/
                         System.Debug(acc);
                         con.GW_Volunteers__Volunteer_Organization__c=p.payer_society;
-                        con.accountid=res.getId();
+                        con.accountid=acc.id;
                     }
                     con.firstname=p.payer_first_name;
                     con.lastname=p.payer_last_name;
@@ -373,73 +104,15 @@ return a;
                     con.mailingCity=p.payer_city;
                     con.mailingCountry=p.payer_country;
                     con.email=p.payer_email;
-                    if(ignoreDuplicates)con.ignore_duplicate__c=true;
                     if(p.payer_birthdate!=null)con.Birthdate=p.payer_birthdate.date();
-                    //insert con;
+                    insert con;
                     
-                    
-                    Database.SaveResult res=DataBase.insert(con,false);
-                    
-                    if (res.isSuccess()) {
-                        // Operation was successful, so get the ID of the record that was processed
-                        System.debug('Successfully inserted contact. contact ID: ' + res.getId());
-                        
-                    }
-                    else {
-                        
-                        Datacloud.DuplicateResult duplicateResult;
-                        List<Datacloud.MatchRecord> matchRecords;
-                        List<Id> duplicateIds = new List<id>();
-                        // Operation failed, so get all errors                
-                        for(Database.Error duplicateError : res.getErrors()) {
-                            if (duplicateError instanceof Database.DuplicateError) {
-                                doublons__c d=new doublons__c();
-                                d.id_paiement__c=p.ID;
-                                duplicateResult = ((Database.DuplicateError)duplicateError).getDuplicateResult();
-                                System.debug('The following error has occurred.--duplicateResult--'+duplicateResult);  
-                  
-                                for(Datacloud.MatchResult duplicateMatchResult : duplicateResult.getMatchResults()) {
-                                    matchRecords = duplicateMatchResult.getMatchRecords();
-                                    System.debug('The following error has occurred.--matchRecords--'+matchRecords);  
-                                }
-                                System.debug('total.--matchRecords--'+matchRecords);  
-                                for(Datacloud.MatchRecord duplicateMatchRecord : matchRecords) {
-                                    duplicateIds.add(duplicateMatchRecord.getRecord().Id);
-                                    System.debug('duplicateIds--'+duplicateIds);
-                                    if(d.Doublon_Potentiel_Contact__c==null)d.Doublon_Potentiel_Contact__c=duplicateMatchRecord.getRecord().Id;
-                                        else{
-                                            if(d.Doublon_Potentiel_Contact_2__c==null)d.Doublon_Potentiel_Contact_2__c=duplicateMatchRecord.getRecord().Id;
-                                        else{
-                                            if(d.Doublon_Potentiel_Contact_3__c==null)d.Doublon_Potentiel_Contact_3__c=duplicateMatchRecord.getRecord().Id;
-                                        }
-                                        }
-                                    
-                                }
-                                System.debug('Total duplicateIds--'+duplicateIds);
-                                d.details__c=string.join(duplicateIds,',');
-                                    d.infos__c=json.serializePretty(p);
-                                    insert d;
-                            }
-                            else system.debug('This is something else');
-                        }
-                        return false;
-                    }
-                    
-                    
-                    System.debug('SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() FOR UPDATE ' + res.getId());
-                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:res.getId() ];//FOR UPDATE
+                    con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:con.id ];//FOR UPDATE
                     donation.npsp__Primary_Contact__c=con.id;
                     donation.Accountid=con.accountid;
                 }
-                else {//maybe we can add a loop to update info or add info from this payment.
+                else {
                     con=cs[0];
-                    // logic to check if address is different between SF and Helooasso
-                    if((con.MailingStreet!=p.payer_address || con.mailingPostalCode!=p.payer_zip_code || con.mailingCity!=p.payer_city || con.mailingCountry!=p.payer_country) && (con.description==null || !con.description.contains('HelloAsso Adresse'))){
-                        con.description=con.description+'\r\n HelloAsso Adresse Différente: \r\n';
-                        con.description=con.description + ' ' + p.payer_address + ' ' + p.payer_zip_code + ' ' + p.payer_city + ' ' + p.payer_country;
-                        update con;
-                    }
-                    //end check address
                     donation.npsp__Primary_Contact__c=cs[0].id;
                     donation.Accountid=cs[0].accountid;
                 }
@@ -476,31 +149,14 @@ return a;
                     }
                     else rd=rds[0];
                     
-                    system.debug('Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and stageName=\'Pledged\' and closeDate<:a.ddate.date().addDays(5) and closeDate>:a.ddate.date().addDays(-5)');
-                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged' or stageName='Withdrawn') and closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
+                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged') and closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
                     if(ds.isEmpty()){
-                        list<opportunity> ds2=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged' or stageName='Withdrawn') and CALENDAR_MONTH(CloseDate)=:p.ddate.month()];
-                        if(ds2.isEmpty()){
-                            list<opportunity> ds3=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged' or stageName='Withdrawn') order by closeDate asc LIMIT 1 ];//FOR UPDATE
-                            if(ds3.isempty()){
-                                //we shoudl revamp after bulk treatment
-                                list <doublons__c> doubs=[SELECT id from doublons__c where Doublon_Potentiel_Contact_3__c=:con.id AND statut__C='A traiter'];
-                                if(doubs.isEmpty()){
-                                    doublons__c d=new doublons__c();
-                                    d.id_paiement__c=p.ID;
-                                    d.infos__c=json.serializePretty(p);
-                                    d.Doublon_Potentiel_Contact_3__c=con.id;
-                                	insert d;
-                                }
-                                return false;
-                               // throw new applicationException('No more open opportunities on this recurrent donation: '+rd.id);
-                            }
-                            else donation=ds3[0];
-                        }
-                        else donation=ds2[0];
+                        System.debug('cant find appropriate donation with recurring donation id: '+rd.id);
+                        npsp.ERR_Handler_API.processError(new applicationException('cant find appropriate donation with recurring donation id: '+rd.id+' - HelloAsso.processPayment '+p.ID),'HA');
+                        return;
                     }
                     else donation=ds[0];
-                    donation=[Select id,amount from opportunity where id=:donation.id ];//FOR UPDATE
+                   // donation=[Select id,amount from opportunity where id=:donation.id ];//FOR UPDATE
                     
                 }
                 else{
@@ -512,43 +168,16 @@ return a;
                 donation.closedate=p.ddate.date();
                 donation.StageName='Posted';
                 donation.description='';
-                if(a.custom_infos!=null){
-                    for(custom_infos ci:a.custom_infos){
-                        donation.description+=ci.label+ ': '+ci.value+'\n';
-                        if(ci.label.contains('adhérent')){
-                            if(ci.value=='Oui'){
-                                donation.Demande_adhesion__c=true;//créer une adhésion.
-                            }
-                            else donation.Demande_adhesion__c=false;
-                            //pour slimpay egalement: 
-                        }
-                        if(ci.label.contains('newsletter')){
-                            if(ci.value=='Oui'){
-                                con.newsletter__c=true;
-                                update con;
-                            }
-                            else{
-                                con.newsletter__c=false;
-                                update con;
-                            }
-                        }
-                        if(ci.label.contains('connu')){
-                            con.contact_comment_connu__c=ci.value;
-                            update con;
-                        }
-                    }
-                }
                 
                 switch on p.mean{
-                    when 'CARD'{donation.Methode_Paiement__c='Carte Bancaire';}//
-                    when 'CHECK'{donation.Methode_Paiement__c='Chèque';}
-                    when 'SEPA'{donation.Methode_Paiement__c='Prélèvement Automatique';}
+                    when 'CARD'{donation.Methode_Paiement__c=PAYMENT_METHOD_CB_PICKLIST_VALUE;}//
+                    when 'CHECK'{donation.Methode_Paiement__c=PAYMENT_METHOD_CHECK_PICKLIST_VALUE;}
+                    when 'SEPA'{donation.Methode_Paiement__c=PAYMENT_METHOD_SEPA_PICKLIST_VALUE;}
                 }
                 
                 System.Debug('Donation');
                 System.Debug(donation);
                 upsert donation;
-                System.Debug(donation);
                 
                 //The payment is automatically created when inserting Donation - lets update payment.
                 List<npe01__OppPayment__c> npspps=[SELECT id,npe01__Payment_Amount__c,npe01__Check_Reference_Number__c,npe01__Payment_Method__c,Plateforme_de_paiement__c from npe01__OppPayment__c where npe01__Opportunity__c=:donation.id];
@@ -557,31 +186,62 @@ return a;
                 if(npspps.isEmpty()){
                     // No payment. An error probably occured. That shouldn't happen.
                     System.Debug('No payment associated. There has been an issue.');
+                    throw new applicationException('cant find appropriate payment for donation with  id: '+donation.id+' - HelloAsso.processPayment '+p.ID);
                 }
                 else{
                     npe01__OppPayment__c p1=npspps[0];
                     p1.npe01__Check_Reference_Number__c=p.id;
                     p1.Plateforme_de_paiement__c='Helloasso';
                     switch on p.mean{
-                        when 'CARD'{p1.npe01__Payment_Method__c='Carte Bancaire';}//
-                        when 'CHECK'{p1.npe01__Payment_Method__c='Chèque';}
-                        when 'SEPA'{P1.npe01__Payment_Method__c='Prélèvement Automatique';}
+                        when 'CARD'{p1.npe01__Payment_Method__c=PAYMENT_METHOD_CB_PICKLIST_VALUE;}//
+                        when 'CHECK'{p1.npe01__Payment_Method__c=PAYMENT_METHOD_CHECK_PICKLIST_VALUE;}
+                        when 'SEPA'{P1.npe01__Payment_Method__c=PAYMENT_METHOD_SEPA_PICKLIST_VALUE;}
                     }
                     update p1;
                     System.Debug(p1);
-                } 
-                
+                }   
             } 
         } 
-        return true;
     }
     
-    
-    public static List<payment> makeGetPaymentsCallout(String fromdate,String rpp, String page) {
+    public Integer makeGetPagesCallout(String fromdate,Integer rpp) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
-        System.debug('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);
-        request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);//BACK to 10000 after test
+        System.debug('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');
+        request.setEndpoint('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');//BACK to 10000 after test
+        request.setMethod('GET');
+        request.setTimeout(20000);
+        HttpResponse response = http.send(request);    
+        Integer pages = 0;
+        // If the request is successful, parse the JSON response.
+        if (response.getStatusCode() == 200) {
+            // Deserialize the JSON string into collections of primitive data types.
+            resource res= (resource) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),resource.class);
+            pages=res.pagination.max_page;
+            System.debug('Number of pages:');
+            System.debug(pages);           
+        }
+        else{
+            if (response.getStatusCode() == 401) {
+               //wait for 2 seconds and retry
+               Long startTime = DateTime.now().getTime();
+               Long finishTime = DateTime.now().getTime();
+               while ((finishTime - startTime) < 2000) {
+                   //sleep for 9s
+                   finishTime = DateTime.now().getTime();
+               }
+               return makeGetPagesCallout(fromdate,rpp);
+           }
+           else throw new applicationException('API Response Code unhandled: '+response.getStatusCode());
+       }
+        return pages;
+    } 
+    
+    public List<payment> makeGetPaymentsCallout(String fromdate,String rpp, String page) {
+        Http http = new Http();
+        HttpRequest request = new HttpRequest();
+        System.debug('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);
+        request.setEndpoint('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);//BACK to 10000 after test
         request.setMethod('GET');
         request.setTimeout(20000);
         HttpResponse response = http.send(request);    
@@ -610,8 +270,8 @@ return a;
         return payments;
     } 
     
-    
-    private static payment makeGetPaymentCallout(String paymentID) {
+ /*   
+    private payment makeGetPaymentCallout(String paymentID) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
         request.setEndpoint('callout:HelloAssoApi/v3/payments/'+paymentID+'.json');
@@ -629,29 +289,24 @@ return a;
             System.debug(payment);
             
         }
+        else{
+            if (response.getStatusCode() == 401) {
+               //wait for 2 seconds and retry
+               Long startTime = DateTime.now().getTime();
+               Long finishTime = DateTime.now().getTime();
+               while ((finishTime - startTime) < 2000) {
+                   //sleep for 9s
+                   finishTime = DateTime.now().getTime();
+               }
+               return makeGetPaymentsCallout(fromdate,rpp,page);
+           }
+           else throw new applicationException('API Response Code unhandled: '+response.getStatusCode());
+       }
         return payment;
     } 
-    /*  
-private static List<action> makeGetActionsCallout(String fromdate) {//type = DONATION | INSCRIPTION | SUBSCRIPTION | RECURRENT_DONATION | OPTION
-Http http = new Http();
-HttpRequest request = new HttpRequest();
-request.setEndpoint('callout:HelloAssoApi/v3/organizations/000000239631/actions.json?from='+fromdate+'&results_per_page=1000');//back to 10000
-request.setMethod('GET');
-request.setTimeout(20000);
-HttpResponse response = http.send(request);    
-List<action> actions = new List<action>();
-// If the request is successful, parse the JSON response.
-if (response.getStatusCode() == 200) {
-// Deserialize the JSON string into collections of primitive data types.
-actionresource res= (actionresource) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),actionresource.class);
-actions = res.resources;
-System.debug('Received the following actions:');
-System.debug(actions);        
-}
-return actions;
-} */
+*/
     
-    private static action makeGetActionCallout(String actionId) {
+    private action makeGetActionCallout(String actionId) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
         request.setEndpoint('callout:HelloAssoApi/v3/actions/'+actionID+'.json');
@@ -667,28 +322,22 @@ return actions;
             System.debug(action);
             
         }
+        else{
+            if (response.getStatusCode() == 401) {
+               //wait for 2 seconds and retry
+               Long startTime = DateTime.now().getTime();
+               Long finishTime = DateTime.now().getTime();
+               while ((finishTime - startTime) < 2000) {
+                   //sleep for 2s
+                   finishTime = DateTime.now().getTime();
+               }
+               return makeGetActionCallout(actionId);
+           }
+           else throw new applicationException('API Response Code unhandled: '+response.getStatusCode());
+       }
         return action;
     } 
-    /*
-    private static haCampaign makeGetCampaignCallout(String CampId) {
-        Http http = new Http();
-        HttpRequest request = new HttpRequest();
-        request.setEndpoint('callout:HelloAssoApi/v3/campaigns/'+CampId+'.json');
-        request.setMethod('GET');
-        request.setTimeout(20000);
-        HttpResponse response = http.send(request);    
-        haCampaign haCampaign=new haCampaign();
-        // If the request is successful, parse the JSON response.
-        if (response.getStatusCode() == 200) {
-            // Deserialize the JSON string into collections of primitive data types.
-            haCampaign = (haCampaign) JSON.deserialize(response.getBody(),haCampaign.class);
-            System.debug('Received the following campaign:');
-            System.debug(haCampaign);
-            
-        }
-        return haCampaign;
-    } 
-*/    
+  
     
     //INNER CLASSES   
     global class actionresource{
