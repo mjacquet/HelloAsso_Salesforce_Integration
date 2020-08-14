@@ -27,7 +27,7 @@ global class helloAssoManager implements Schedulable {
       }
 
     public void doBatch() {
-    	Database.executeBatch(new HelloAssoSyncBatchable(), 1);
+    	Database.executeBatch(new HelloAssoSyncBatchable(), 1); //1 because we will process 1 page at a time. the size of the page is definied by SYNC_BATCH_SIZE
 	}
     
     public void processPaymentsBatch(List<payment> ps){
@@ -125,14 +125,17 @@ global class helloAssoManager implements Schedulable {
                    
                     //if newly create contact, soql returns nothing. need to take care of that. 
                     if(p.payer_is_society && (!mxaccos.isempty() && mxaccos[0].RecordType.DeveloperName=='Organization')){
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid order by Id desc];// and npe03__Open_Ended_Status__c='Open'
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid and npe03__Open_Ended_Status__c='Open' order by Id desc];// 
                     }
                     else{
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id order by Id desc];// and npe03__Open_Ended_Status__c='Open'
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id and npe03__Open_Ended_Status__c='Open' order by Id desc];//
                     }
                     
                     if(rds.isEmpty()){
-                        
+                        System.debug('Cant find recurring donation for this paiement: '+p.id+' from '+p.payer_first_name +' '+p.payer_last_name+' and amount='+p.amount);
+                        npsp.ERR_Handler_API.processError(new applicationException('Cant find recurring donation for this helloasso paiement: '+p.id+' from '+p.payer_first_name +' '+p.payer_last_name+' and amount='+p.amount+' and date='+p.ddate.format()),'HA');
+                        return;
+                        /*
                         if(p.payer_is_society){ 
                             rd.npe03__Organization__c=con.accountid;
                             rd.Name='Donation récurrente - '+con.account.name;
@@ -145,7 +148,7 @@ global class helloAssoManager implements Schedulable {
                         rd.npe03__Date_Established__c=p.ddate.date();
                         rd.npe03__Installment_Period__c='Monthly';
                         rd.npe03__Open_Ended_Status__c='Open';
-                        insert rd;
+                        insert rd;*/
                     }
                     else rd=rds[0];
                     
@@ -237,11 +240,11 @@ global class helloAssoManager implements Schedulable {
         return pages;
     } 
     
-    public List<payment> makeGetPaymentsCallout(String fromdate,String rpp, String page) {
+    public List<payment> makeGetPaymentsCallout(String fromdate,Integer rpp, String page) {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
         System.debug('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);
-        request.setEndpoint('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);//BACK to 10000 after test
+        request.setEndpoint('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page='+page);
         request.setMethod('GET');
         request.setTimeout(20000);
         HttpResponse response = http.send(request);    
@@ -269,75 +272,6 @@ global class helloAssoManager implements Schedulable {
         }
         return payments;
     } 
-    
- /*   
-    private payment makeGetPaymentCallout(String paymentID) {
-        Http http = new Http();
-        HttpRequest request = new HttpRequest();
-        request.setEndpoint('callout:HelloAssoApi/v3/payments/'+paymentID+'.json');
-        request.setMethod('GET');
-        request.setTimeout(20000);
-        HttpResponse response = http.send(request);    
-        payment payment=new payment();
-        // If the request is successful, parse the JSON response.
-        if (response.getStatusCode() == 200) {
-            // Deserialize the JSON string into collections of primitive data types.
-            payment = (payment) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),payment.class);
-            // Cast the values in the 'animals' key as a list
-            //payment = (Object) results.get('resources');
-            System.debug('Received the following payment details:');
-            System.debug(payment);
-            
-        }
-        else{
-            if (response.getStatusCode() == 401) {
-               //wait for 2 seconds and retry
-               Long startTime = DateTime.now().getTime();
-               Long finishTime = DateTime.now().getTime();
-               while ((finishTime - startTime) < 2000) {
-                   //sleep for 9s
-                   finishTime = DateTime.now().getTime();
-               }
-               return makeGetPaymentsCallout(fromdate,rpp,page);
-           }
-           else throw new applicationException('API Response Code unhandled: '+response.getStatusCode());
-       }
-        return payment;
-    } 
-*/
-    
-    private action makeGetActionCallout(String actionId) {
-        Http http = new Http();
-        HttpRequest request = new HttpRequest();
-        request.setEndpoint('callout:HelloAssoApi/v3/actions/'+actionID+'.json');
-        request.setMethod('GET');
-        request.setTimeout(20000);
-        HttpResponse response = http.send(request);    
-        action action=new action();
-        // If the request is successful, parse the JSON response.
-        if (response.getStatusCode() == 200) {
-            // Deserialize the JSON string into collections of primitive data types.
-            action = (action) JSON.deserialize(response.getBody().replace('"date"','"ddate"'),action.class);
-            System.debug('Received the following action:');
-            System.debug(action);
-            
-        }
-        else{
-            if (response.getStatusCode() == 401) {
-               //wait for 2 seconds and retry
-               Long startTime = DateTime.now().getTime();
-               Long finishTime = DateTime.now().getTime();
-               while ((finishTime - startTime) < 2000) {
-                   //sleep for 2s
-                   finishTime = DateTime.now().getTime();
-               }
-               return makeGetActionCallout(actionId);
-           }
-           else throw new applicationException('API Response Code unhandled: '+response.getStatusCode());
-       }
-        return action;
-    } 
-  
     
     //INNER CLASSES   
     global class actionresource{

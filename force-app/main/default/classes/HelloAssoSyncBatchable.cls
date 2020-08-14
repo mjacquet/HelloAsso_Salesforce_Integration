@@ -18,14 +18,14 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
     global void execute(Database.BatchableContext context, String[] page) {
         System.debug(page);
         String Fromdate=datetime.now().addDays(-service.DAYS_DELTA).format('yyyy-MM-dd\'T\'HH:mm:ss');
-        List<HelloAssoManager.payment> ps=service.makeGetPaymentsCallout(Fromdate+'Z','10',page[0]);
+        List<HelloAssoManager.payment> ps=service.makeGetPaymentsCallout(Fromdate+'Z',service.SYNC_BATCH_SIZE,page[0]);
         service.processPaymentsBatch(ps);
     }
 
     global void finish(Database.BatchableContext context) {
         // Check for errors and send an email if batch failed
         AsyncApexJob job = [SELECT Id, NumberOfErrors, ExtendedStatus FROM AsyncApexJob WHERE Id = :context.getJobId()];
-        System.debug('SlimPay sync job finished with '+ job.NumberOfErrors +' error(s)');
+        System.debug('HelloAsso sync job finished with '+ job.NumberOfErrors +' error(s)');
         if (job.NumberOfErrors > 0) {
             String emailBody = 'La synchronization des paiements HelloAsso à échouée avec '+ job.NumberOfErrors + ' erreur(s).\n\n'+
                 'Job ID: '+ job.Id +'\n'+
