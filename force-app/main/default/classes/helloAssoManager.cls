@@ -79,10 +79,13 @@ global class helloAssoManager implements Schedulable {
                 
                System.Debug('Contact (+household or Organization)');
                Contact con=new contact(); 
-               List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email ];//FOR UPDATE
+               List<contact> cs=[Select id,accountid,name,firstname,lastname,account.name,email,MailingStreet,mailingPostalCode,mailingCity,mailingCountry,description from contact where email=:p.payer_email OR npe01__AlternateEmail__c=:p.payer_email OR npe01__HomeEmail__c=:p.payer_email OR npe01__WorkEmail__c=:p.payer_email];//FOR UPDATE
                 if(cs.isEmpty()){
+                        System.debug('Cant find contact for this paiement: '+p.id+' from '+p.payer_first_name +' '+p.payer_last_name+' '+p.payer_email+' and amount='+p.amount);
+                        npsp.ERR_Handler_API.processError(new applicationException('Cant find contact for this paiement: '+p.id+' from '+p.payer_first_name +' '+p.payer_last_name+' '+p.payer_email+' and amount='+p.amount+' and date='+p.ddate.format()),'HA');
+                        return;
                     //No contact with this email. let's create one.
-                    System.Debug('Creating contact');
+                    /*System.Debug('Creating contact');
                     if(p.payer_is_society){//this is an organization, not an household
                         Account acc=new account();
                         acc.shippingStreet=p.payer_address;
@@ -109,7 +112,7 @@ global class helloAssoManager implements Schedulable {
                     
                     con=[SELECT firstname,lastname, email, account.name,accountid from contact where id=:con.id ];//FOR UPDATE
                     donation.npsp__Primary_Contact__c=con.id;
-                    donation.Accountid=con.accountid;
+                    donation.Accountid=con.accountid;*/
                 }
                 else {
                     con=cs[0];
@@ -124,10 +127,10 @@ global class helloAssoManager implements Schedulable {
                     List <Account> mxaccos=[SELECT id,RecordType.DeveloperName from account where id = :con.accountid ];
                    
                     if(p.payer_is_society && (!mxaccos.isempty() && mxaccos[0].RecordType.DeveloperName=='Organization')){
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid and npe03__Open_Ended_Status__c='Open' order by Id desc];// 
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid and npe03__Open_Ended_Status__c='Open' order by Id asc];// 
                     }
                     else{
-                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id and npe03__Open_Ended_Status__c='Open' order by Id desc];//
+                        rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Contact__c=:con.id and npe03__Open_Ended_Status__c='Open' order by Id asc];//
                     }
                     
                     if(rds.isEmpty()){
@@ -208,12 +211,12 @@ global class helloAssoManager implements Schedulable {
             System.debug(pages);           
         }
         else{
-            if (response.getStatusCode() == 401) {
+            if (response.getStatusCode() == 401 || response.getStatusCode() == 429) {
                //wait for 2 seconds and retry
                Long startTime = DateTime.now().getTime();
                Long finishTime = DateTime.now().getTime();
-               while ((finishTime - startTime) < 2000) {
-                   //sleep for 2s
+               while ((finishTime - startTime) < 10000) {
+                   //sleep for 10s
                    finishTime = DateTime.now().getTime();
                }
                return makeGetPagesCallout(fromdate,rpp);
@@ -241,12 +244,12 @@ global class helloAssoManager implements Schedulable {
             System.debug(payments);           
         }
         else{
-         	if (response.getStatusCode() == 401) {
+            if (response.getStatusCode() == 401 || response.getStatusCode() == 429) {
                 //wait for 2 seconds and retry
                 Long startTime = DateTime.now().getTime();
                 Long finishTime = DateTime.now().getTime();
-                while ((finishTime - startTime) < 2000) {
-                    //sleep for 2s
+                while ((finishTime - startTime) < 10000) {
+                    //sleep for 10s
                     finishTime = DateTime.now().getTime();
                 }
                 return makeGetPaymentsCallout(fromdate,rpp,page);
