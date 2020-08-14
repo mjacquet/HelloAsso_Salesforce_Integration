@@ -6,6 +6,7 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
     global Iterable<String> start(Database.BatchableContext context){
         
         String Fromdate=datetime.now().addDays(-service.DAYS_DELTA).format('yyyy-MM-dd\'T\'HH:mm:ss');
+        if(Test.isRunningTest())Fromdate='yyyy-MM-dd\'T\'HH:mm:ss';
         //call and get the number of API response pages
         Integer pages = service.makeGetPagesCallout(Fromdate+'Z',service.SYNC_BATCH_SIZE);
         System.Debug(pages);
@@ -18,6 +19,7 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
     global void execute(Database.BatchableContext context, String[] page) {
         System.debug(page);
         String Fromdate=datetime.now().addDays(-service.DAYS_DELTA).format('yyyy-MM-dd\'T\'HH:mm:ss');
+        if(Test.isRunningTest())Fromdate='yyyy-MM-dd\'T\'HH:mm:ss';
         List<HelloAssoManager.payment> ps=service.makeGetPaymentsCallout(Fromdate+'Z',service.SYNC_BATCH_SIZE,page[0]);
         service.processPaymentsBatch(ps);
     }

@@ -5,7 +5,7 @@ global class helloAssoManager implements Schedulable {
     private final String PAYMENT_METHOD_CHECK_PICKLIST_VALUE ;
     private final String PAYMENT_METHOD_SEPA_PICKLIST_VALUE ;
     private final String PAYMENT_METHOD_CB_PICKLIST_VALUE ;
-    private final String HELLOASSO_ORGID ;
+    public final String HELLOASSO_ORGID ;
     public final String NOTIFICATION_EMAIL;
     public final Integer DAYS_DELTA;
     
@@ -123,7 +123,6 @@ global class helloAssoManager implements Schedulable {
                     List <npe03__Recurring_Donation__c> rds=new List<npe03__Recurring_Donation__c>();
                     List <Account> mxaccos=[SELECT id,RecordType.DeveloperName from account where id = :con.accountid ];
                    
-                    //if newly create contact, soql returns nothing. need to take care of that. 
                     if(p.payer_is_society && (!mxaccos.isempty() && mxaccos[0].RecordType.DeveloperName=='Organization')){
                         rds=[SELECT id,npe03__Contact__c,npe03__Organization__c from npe03__Recurring_Donation__c where npe03__Organization__c=:con.accountid and npe03__Open_Ended_Status__c='Open' order by Id desc];// 
                     }
@@ -135,32 +134,16 @@ global class helloAssoManager implements Schedulable {
                         System.debug('Cant find recurring donation for this paiement: '+p.id+' from '+p.payer_first_name +' '+p.payer_last_name+' and amount='+p.amount);
                         npsp.ERR_Handler_API.processError(new applicationException('Cant find recurring donation for this helloasso paiement: '+p.id+' from '+p.payer_first_name +' '+p.payer_last_name+' and amount='+p.amount+' and date='+p.ddate.format()),'HA');
                         return;
-                        /*
-                        if(p.payer_is_society){ 
-                            rd.npe03__Organization__c=con.accountid;
-                            rd.Name='Donation récurrente - '+con.account.name;
-                        }
-                        else {
-                            rd.npe03__Contact__c=con.id;
-                            rd.Name='Donation récurrente - '+con.Firstname+' ' +con.Lastname;
-                        }
-                        rd.npe03__Amount__c=a.amount;
-                        rd.npe03__Date_Established__c=p.ddate.date();
-                        rd.npe03__Installment_Period__c='Monthly';
-                        rd.npe03__Open_Ended_Status__c='Open';
-                        insert rd;*/
                     }
                     else rd=rds[0];
                     
-                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged') and closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
+                    list<opportunity> ds=[Select id,amount from opportunity where npe03__Recurring_Donation__c=:rd.id and (stageName='Pledged') AND CALENDAR_MONTH(CloseDate)=:p.ddate.month() AND CALENDAR_YEAR(CloseDate)=:p.ddate.year()];//closeDate<:p.ddate.date().addDays(5) and closeDate>:p.ddate.date().addDays(-5) ];//FOR UPDATE
                     if(ds.isEmpty()){
                         System.debug('cant find appropriate donation with recurring donation id: '+rd.id);
                         npsp.ERR_Handler_API.processError(new applicationException('cant find appropriate donation with recurring donation id: '+rd.id+' - HelloAsso.processPayment '+p.ID),'HA');
                         return;
                     }
                     else donation=ds[0];
-                   // donation=[Select id,amount from opportunity where id=:donation.id ];//FOR UPDATE
-                    
                 }
                 else{
                     //let's update the donation
@@ -211,7 +194,7 @@ global class helloAssoManager implements Schedulable {
         Http http = new Http();
         HttpRequest request = new HttpRequest();
         System.debug('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');
-        request.setEndpoint('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');//BACK to 10000 after test
+        request.setEndpoint('callout:HelloAssoApi/v3/organizations/'+HELLOASSO_ORGID+'/payments.json?from='+fromdate+'&results_per_page='+rpp+'&page=1');
         request.setMethod('GET');
         request.setTimeout(20000);
         HttpResponse response = http.send(request);    
@@ -230,7 +213,7 @@ global class helloAssoManager implements Schedulable {
                Long startTime = DateTime.now().getTime();
                Long finishTime = DateTime.now().getTime();
                while ((finishTime - startTime) < 2000) {
-                   //sleep for 9s
+                   //sleep for 2s
                    finishTime = DateTime.now().getTime();
                }
                return makeGetPagesCallout(fromdate,rpp);
@@ -263,7 +246,7 @@ global class helloAssoManager implements Schedulable {
                 Long startTime = DateTime.now().getTime();
                 Long finishTime = DateTime.now().getTime();
                 while ((finishTime - startTime) < 2000) {
-                    //sleep for 9s
+                    //sleep for 2s
                     finishTime = DateTime.now().getTime();
                 }
                 return makeGetPaymentsCallout(fromdate,rpp,page);
@@ -307,7 +290,7 @@ global class helloAssoManager implements Schedulable {
         public string url_receipt;
         public string url_tax_receipt;
         public string status;
-        public string mean; //moyen de paiement NEW
+        public string mean; 
         public List<action> actions;
     }
     global class action{
