@@ -1,6 +1,8 @@
 @isTest
 global class helloAssoManager_test {
 
+    
+
     @istest static void CalloutClassTest() {
         
         account a = new account(name='account');
@@ -27,13 +29,27 @@ global class helloAssoManager_test {
 
     global class MockHttpResponseGenerator implements HttpCalloutMock {
         // Implement this interface method
+        private Boolean apierror=true;
+
         global HTTPResponse respond(HTTPRequest req) {
             // Create a fake response
-            HttpResponse res = new HttpResponse();
-            res.setHeader('Content-Type', 'application/json');
-            res.setBody('{"resources":[{"id":"000081102923","ddate":"2018-08-17T15:58:00Z","amount":50.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"qsc","payer_zip_code":"00500","payer_city":"XXXXX","payer_country":"FRA","payer_email":"test@test.com","payer_birthdate":null,"payer_society":"blabla","payer_is_society":false,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376701","type":"RECURRENT_DONATION","amount":50.00,"status":"PROCESSED"}],"status":"AUTHORIZED"},{"id":"000081102924","ddate":"2018-08-17T15:58:00Z","amount":50.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"qsc","payer_zip_code":"00500","payer_city":"XXXXX","payer_country":"FRA","payer_email":"test2@test.com","payer_birthdate":null,"payer_society":"blabla","payer_is_society":true,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376702","type":"RECURRENT_DONATION","amount":50.00,"status":"PROCESSED"}],"status":"AUTHORIZED"}],"pagination":{"page":1,"max_page":1,"results_per_page":1}}');
-            res.setStatusCode(200);
-            return res;
+            if(apierror){
+                HttpResponse res = new HttpResponse();
+                res.setHeader('Content-Type', 'application/json');
+                res.setBody('');
+                res.setStatusCode(429);
+                apierror=false;
+                return res;
+            }
+            else{
+                HttpResponse res = new HttpResponse();
+                res.setHeader('Content-Type', 'application/json');
+                res.setBody('{"resources":[{"id":"000081102923","ddate":"2018-08-17T15:58:00Z","amount":50.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"qsc","payer_zip_code":"00500","payer_city":"XXXXX","payer_country":"FRA","payer_email":"test@test.com","payer_birthdate":null,"payer_society":"blabla","payer_is_society":false,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376701","type":"RECURRENT_DONATION","amount":50.00,"status":"PROCESSED"}],"status":"AUTHORIZED"},{"id":"000081102924","ddate":"2018-08-17T15:58:00Z","amount":50.00,"type":"CREDIT","payer_first_name":"Maxime","payer_last_name":"Jacquet","payer_address":"qsc","payer_zip_code":"00500","payer_city":"XXXXX","payer_country":"FRA","payer_email":"test2@test.com","payer_birthdate":null,"payer_society":"blabla","payer_is_society":true,"url_receipt":"https://www.helloasso.com/associations/zero-waste-france/formulaires/1/paiement-attestation/5037670","url_tax_receipt":"","actions":[{"id":"000050376702","type":"RECURRENT_DONATION","amount":50.00,"status":"PROCESSED"}],"status":"AUTHORIZED"}],"pagination":{"page":1,"max_page":1,"results_per_page":1}}');
+                res.setStatusCode(200);
+                apierror=true;
+                return res;
+            }
+            
         }
     }
         

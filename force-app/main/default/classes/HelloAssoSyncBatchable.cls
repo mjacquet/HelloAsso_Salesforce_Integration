@@ -28,7 +28,7 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
         // Check for errors and send an email if batch failed
         AsyncApexJob job = [SELECT Id, NumberOfErrors, ExtendedStatus FROM AsyncApexJob WHERE Id = :context.getJobId()];
         System.debug('HelloAsso sync job finished with '+ job.NumberOfErrors +' error(s)');
-        if (job.NumberOfErrors > 0) {
+        if (job.NumberOfErrors > 0 || (Test.isRunningTest() && !runningInASandbox()) ) {
             String emailBody = 'La synchronization des paiements HelloAsso à échouée avec '+ job.NumberOfErrors + ' erreur(s).\n\n'+
                 'Job ID: '+ job.Id +'\n'+
                 'Message: '+ job.ExtendedStatus +'\n\n'+
@@ -56,4 +56,8 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
         List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob WHERE Status NOT IN ('Aborted', 'Completed', 'Failed') AND ApexClassId =: batchClassId];
         return (jobs.size() == 0) ? null : jobs[0].Id;
     }
+
+    public static Boolean runningInASandbox() {
+        return [SELECT Id, IsSandbox FROM Organization LIMIT 1].IsSandbox;
+      }
 }
