@@ -6,13 +6,11 @@ global class helloAssoManager implements Schedulable {
     private final String PAYMENT_METHOD_SEPA_PICKLIST_VALUE ;
     private final String PAYMENT_METHOD_CB_PICKLIST_VALUE ;
     public final String HELLOASSO_ORGID ;
-    public final String NOTIFICATION_EMAIL;
     public final Integer DAYS_DELTA;
     
     public helloAssoManager(){
-        HelloAsso_Sync_Settings__mdt settings = [SELECT helloasso_orgid__c,Batch_Size__c, email__c, days_delta__c,Payment_Method_SEPA__C,Payment_Method_CB__C,Payment_Method_Check__C,Payment_Platform__c FROM HelloAsso_Sync_Settings__mdt Where DeveloperName='Main'];
+        HelloAsso_Sync_Settings__mdt settings = [SELECT helloasso_orgid__c,Batch_Size__c, days_delta__c,Payment_Method_SEPA__C,Payment_Method_CB__C,Payment_Method_Check__C,Payment_Platform__c FROM HelloAsso_Sync_Settings__mdt Where DeveloperName='Main'];
         SYNC_BATCH_SIZE=settings.Batch_Size__c.intValue();
-        NOTIFICATION_EMAIL=settings.email__c;
         DAYS_DELTA=settings.days_delta__c.intValue();
         PAYMENT_METHOD_CHECK_PICKLIST_VALUE=settings.Payment_Method_check__C;
         PAYMENT_METHOD_SEPA_PICKLIST_VALUE=settings.Payment_Method_SEPA__C;
