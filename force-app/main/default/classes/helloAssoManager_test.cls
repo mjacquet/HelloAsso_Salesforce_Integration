@@ -1,8 +1,5 @@
 @isTest
 global class helloAssoManager_test {
-
-    
-
     @istest static void CalloutClassTest() {
         
         account a = new account(name='account');

@@ -28,36 +28,9 @@ global class HelloAssoSyncBatchable implements Database.Batchable<String>, Datab
         // Check for errors and send an email if batch failed
         AsyncApexJob job = [SELECT Id, NumberOfErrors, ExtendedStatus FROM AsyncApexJob WHERE Id = :context.getJobId()];
         System.debug('HelloAsso sync job finished with '+ job.NumberOfErrors +' error(s)');
-        if (job.NumberOfErrors > 0 || (Test.isRunningTest() && !runningInASandbox()) ) {
-            String emailBody = 'La synchronization des paiements HelloAsso à échouée avec '+ job.NumberOfErrors + ' erreur(s).\n\n'+
-                'Job ID: '+ job.Id +'\n'+
-                'Message: '+ job.ExtendedStatus +'\n\n'+
-                'Consultez les logs de Salesforce pour plus de détails.';
-            sendEmailToAdmins('Echec de la synchronization HelloAsso', emailBody);
+        if (job.NumberOfErrors > 0 ) {
+            npsp.ERR_Handler_API.processError(new applicationException('La synchronization des paiements HelloAsso a échoué avec '+ job.NumberOfErrors + ' erreur(s).\n\nJob ID: '+ job.Id +'\nMessage: '+ job.ExtendedStatus +'\n\n'),'HA');
         }
     }
-
-    @TestVisible
-    private void sendEmailToAdmins(String subject, String body) {
-        // Get admin emails
-        List<String> adminEmails = new List<String>();
-        adminEmails.add(service.NOTIFICATION_EMAIL);
-        // Send email
-        Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
-        email.setToAddresses(adminEmails);
-        email.setSubject(subject);
-        email.setPlainTextBody(body);
-        Messaging.sendEmail(new Messaging.SingleEmailMessage[]{ email });
-    }
-
-    global static Id getRunningJobId() {
-        String batchClassName = HelloAssoSyncBatchable.class.getName();
-        Id batchClassId = [SELECT Id FROM ApexClass WHERE Name =: batchClassName].Id;
-        List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob WHERE Status NOT IN ('Aborted', 'Completed', 'Failed') AND ApexClassId =: batchClassId];
-        return (jobs.size() == 0) ? null : jobs[0].Id;
-    }
-
-    public static Boolean runningInASandbox() {
-        return [SELECT Id, IsSandbox FROM Organization LIMIT 1].IsSandbox;
-      }
+    public class applicationException extends Exception {} 
 }
